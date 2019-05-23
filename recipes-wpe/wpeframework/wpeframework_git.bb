@@ -23,10 +23,10 @@ inherit cmake pkgconfig systemd update-rc.d
 
 # Yocto root is under /home/root
 WPEFRAMEWORK_PERSISTENT_PATH = "/home/root"
-WPEFRAMEWORK_SYSTEM_PREFIX = "OE"
+WPEFRAMEWORK_SYSTEM_PREFIX = "NOS"
 
 PACKAGECONFIG ?= " \
-    release \
+    debug \
     ${@bb.utils.contains('DISTRO_FEATURES', 'opencdm', 'opencdm opencdm_gst', '', d)} \
     ${@bb.utils.contains('DISTRO_FEATURES', 'playready_nexus_svp', 'opencdmi_prnx_svp', '', d)} \
     virtualinput websource webkitbrowser \

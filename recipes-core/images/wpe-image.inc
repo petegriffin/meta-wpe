@@ -1,6 +1,7 @@
 IMAGE_INSTALL_append = "\
    packagegroup-wpewebkit \
    packagegroup-wpeframework \
+   wpeframework-netflix \
 "
 
 # If WPE Framework is enabled as distro feature, remove the default packagegroup-core-boot and run with our own
