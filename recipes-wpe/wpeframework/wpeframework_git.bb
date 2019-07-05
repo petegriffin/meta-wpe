@@ -23,7 +23,6 @@ inherit cmake pkgconfig systemd update-rc.d
 
 # Yocto root is under /home/root
 WPEFRAMEWORK_PERSISTENT_PATH = "/home/root"
-#DAD: For a SKY Glass POC version replace NOS by SKY
 WPEFRAMEWORK_SYSTEM_PREFIX = "SKY"
 
 PACKAGECONFIG ?= " \
