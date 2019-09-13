@@ -8,6 +8,7 @@ PIDFile=/var/run/WPEFramework.pid
 EnvironmentFile=-/etc/wpeframework/WPEFramework.env
 Environment="WAYLAND_DISPLAY=wayland-0"
 Environment="XDG_RUNTIME_DIR=/run"
+Environment="LD_PRELOAD=/usr/lib/libwesteros_gl.so.0"
 ExecStart=-/usr/bin/WPEFramework -b
 ExecStop=/bin/kill $MAINPID
 
