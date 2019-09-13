@@ -124,7 +124,7 @@ RDEPS_MEDIASOURCE = " \
 RDEPS_VIDEO = " \
     gstreamer1.0-plugins-base-app \
     gstreamer1.0-plugins-base-playback \
-    gstreamer1.0-plugins-good-souphttpsrc \
+    gstreamer1.0-plugins-good-soup \
 "
 
 RDEPS_WEBAUDIO = " \
