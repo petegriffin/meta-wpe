@@ -11,7 +11,6 @@ SRC_URI = "git://github.com/WebPlatformForEmbedded/WPEFrameworkPlugins.git;proto
            file://osmc-devinput-remote.json \
            file://0001-WebKitBrowser-Default-to-1080p-instead-of-720p.patch \
            file://0001-westeros-preload-libwesteros_gl.so.0.0.0.patch \
-           file://0001-wpeframework-plugins-Linking-InjectedBundle-cpp-file.patch \
            "
 
 SRCREV = "a84313d0355b3c57033c5e24b9ac927f4bda913b"
