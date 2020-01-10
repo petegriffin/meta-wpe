@@ -8,7 +8,7 @@ SRC_URI = "git://github.com/WebPlatformForEmbedded/WPEWebKit.git;branch=wpe-2.22
            file://0001-Fix-build-with-musl.patch \
            file://0002-Define-MESA_EGL_NO_X11_HEADERS-when-not-using-GLX.patch \
         "
-
+#DRM_PATCH
 DEPENDS += "libgcrypt"
 PACKAGECONFIG_append = " webcrypto"
 
