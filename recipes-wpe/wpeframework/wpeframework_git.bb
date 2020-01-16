@@ -20,7 +20,7 @@ SRC_URI = "git://github.com/WebPlatformForEmbedded/WPEFramework.git \
            file://wpeframework.service.in \
            file://0001-Thread.cpp-Include-limits.h-for-PTHREAD_STACK_MIN-de.patch \
            "
-SRCREV = "9629e13e398f1bd5c869f9c3c01bce0021604eee"
+SRCREV = "48af1307856dab36b040cc8e03e4d2000a9cb087"
 
 inherit cmake pkgconfig systemd update-rc.d
 
@@ -96,6 +96,7 @@ EXTRA_OECMAKE += " \
     -DSYSTEM_PREFIX=${WPEFRAMEWORK_SYSTEM_PREFIX} \
     -DPLUGIN_COMPOSITOR_IMPLEMENTATION=${WPE_COMPOSITOR_IMPL} \
     -DPLUGIN_COMPOSITOR_SUB_IMPLEMENTATION=${WPE_COMPOSITOR_SUB_IMPL} \
+    -DPYTHON_EXECUTABLE=${STAGING_BINDIR_NATIVE}/python-native/python \
 "
 
 CXXFLAGS += "${@bb.utils.contains('DISTRO_FEATURES', 'wayland', '-DWL_EGL_PLATFORM', '', d)}"
