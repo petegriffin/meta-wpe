@@ -1,0 +1,94 @@
+From 5ba04d188538c7f84ebbb6e66323260da8ca28da Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Fri, 13 Mar 2020 15:18:02 -0400
+Subject: [PATCH 8/9] [GStreamer][MSE] Properly handle the case where playback
+ rate is 0
+
+MediaPlayerPrivateGStreamer has a concept of simulated pause
+(m_playbackRatePause=true). This occurs when the playback rate is 0
+(m_playbackRate=0).
+
+MediaPlayerPrivateGStreamerMSE was no aware of this mode. As a consequence,
+the player cannot go out of this simulated pause. The issue has been
+observed when play is triggered when the playback rate is 0. Then, when
+the rate is set to 1, the state remained PAUSED.
+
+m_playbackRatePause is now a protected attribute and
+MediaPlayerPrivateGStreamerMSE::SetRate is modified to properly enter
+and leave the simulated pause mode based on the rate and state.
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ .../gstreamer/MediaPlayerPrivateGStreamer.h   |  2 +-
+ .../mse/MediaPlayerPrivateGStreamerMSE.cpp    | 22 +++++++++++++++++++
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/Source/WebCore/platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.h b/Source/WebCore/platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.h
+index b03d698b3ce..49589ebde5b 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.h
++++ b/Source/WebCore/platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.h
+@@ -199,6 +199,7 @@ protected:
+     mutable MediaTime m_durationAtEOS;
+     bool m_paused;
+     float m_playbackRate;
++    bool m_playbackRatePause;
+     GstState m_currentState;
+     GstState m_oldState;
+     GstState m_requestedState;
+@@ -245,7 +246,6 @@ private:
+ #endif
+     GstStructure* m_mediaLocations;
+     int m_mediaLocationCurrentIndex;
+-    bool m_playbackRatePause;
+     MediaTime m_timeOfOverlappingSeek;
+     float m_lastPlaybackRate;
+     Timer m_fillTimer;
+diff --git a/Source/WebCore/platform/graphics/gstreamer/mse/MediaPlayerPrivateGStreamerMSE.cpp b/Source/WebCore/platform/graphics/gstreamer/mse/MediaPlayerPrivateGStreamerMSE.cpp
+index c0016df900d..203f10f3caf 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/mse/MediaPlayerPrivateGStreamerMSE.cpp
++++ b/Source/WebCore/platform/graphics/gstreamer/mse/MediaPlayerPrivateGStreamerMSE.cpp
+@@ -449,6 +449,15 @@ void MediaPlayerPrivateGStreamerMSE::maybeFinishSeek()
+ 
+ void MediaPlayerPrivateGStreamerMSE::updatePlaybackRate()
+ {
++    if (m_playbackRatePause && m_playbackRate != 0) {
++        GstState state;
++        GstState pending;
++
++        gst_element_get_state(m_pipeline.get(), &state, &pending, 0);
++        if (state != GST_STATE_PLAYING && pending != GST_STATE_PLAYING)
++            changePipelineState(GST_STATE_PLAYING);
++        m_playbackRatePause = false;
++    }
+ }
+ 
+ bool MediaPlayerPrivateGStreamerMSE::seeking() const
+@@ -531,12 +540,25 @@ void MediaPlayerPrivateGStreamerMSE::setRate(float rate)
+     m_playbackRate = rate;
+     m_player->rateChanged();
+ 
++    if (!rate) {
++        GstState state;
++        GstState pending;
++
++        m_playbackRatePause = true;
++        gst_element_get_state(m_pipeline.get(), &state, &pending, 0);
++        if (state != GST_STATE_PAUSED && pending != GST_STATE_PAUSED)
++            changePipelineState(GST_STATE_PAUSED);
++        return;
++    }
++
+     m_seekTime = currentMediaTime();
+     if (!doSeek()) {
+         m_playbackRate = lastPlaybackRate;
+         m_player->rateChanged();
+         GST_ERROR("Set rate to %f failed", m_playbackRate);
+     }
++
++    updatePlaybackRate();
+ }
+ 
+ std::unique_ptr<PlatformTimeRanges> MediaPlayerPrivateGStreamerMSE::buffered() const
+-- 
+2.17.1
+

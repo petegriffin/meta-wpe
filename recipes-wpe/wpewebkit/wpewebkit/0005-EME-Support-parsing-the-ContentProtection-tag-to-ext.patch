@@ -1,0 +1,67 @@
+From 3d9765d018fd3ad945ecc607818d60a4ab822148 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@nxp.com>
+Date: Tue, 4 Feb 2020 11:33:54 -0500
+Subject: [PATCH 5/9] [EME] Support parsing the ContentProtection tag to
+ extract the PSSH box
+
+This is required to support the playback of encrypted content with Shaka
+player where the PSSH box is provided in XML format (within a
+ContentProtection tag).
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@nxp.com>
+---
+ .../encryptedmedia/InitDataRegistry.cpp       | 31 ++++++++++++++++---
+ 1 file changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/Source/WebCore/Modules/encryptedmedia/InitDataRegistry.cpp b/Source/WebCore/Modules/encryptedmedia/InitDataRegistry.cpp
+index 8d5cc7f18dd..fca083be724 100644
+--- a/Source/WebCore/Modules/encryptedmedia/InitDataRegistry.cpp
++++ b/Source/WebCore/Modules/encryptedmedia/InitDataRegistry.cpp
+@@ -30,7 +30,7 @@
+ 
+ #include "ISOProtectionSystemSpecificHeaderBox.h"
+ #include <JavaScriptCore/DataView.h>
+-#include "NotImplemented.h"
++#include "Logging.h"
+ #include "SharedBuffer.h"
+ #include <wtf/JSONValues.h>
+ #include <wtf/NeverDestroyed.h>
+@@ -157,10 +157,31 @@ static RefPtr<SharedBuffer> sanitizeCenc(const SharedBuffer& buffer)
+ {
+     // 4. Common SystemID and PSSH Box Format
+     // https://w3c.github.io/encrypted-media/format-registry/initdata/cenc.html#common-system
+-    if (!extractKeyIDsCenc(buffer))
+-        return nullptr;
+-
+-    return buffer.copy();
++    if (extractKeyIDsCenc(buffer)){
++        return buffer.copy();
++    } else {
++        LOG(EME, "EME - buffer is not pssh box, let's try with XML ContentProtection");
++
++        // HACK: Extract PSSH from XML ContentProtection tag
++        // TODO: Improve (size validation, ...)
++        const char *start = strstr(buffer.data(), "<cenc:pssh>");
++        const char *end = strstr(buffer.data(), "</cenc:pssh>");
++        if((start == NULL) || (end == NULL)) {
++            LOG(EME, "EME - Cannot parse ContentProtection tag");
++            return nullptr;
++        }
++
++        start += strlen("<cenc:pssh>");
++        size_t size = (size_t)end - (size_t)start;
++
++        Vector<uint8_t> psshData;
++        if (!WTF::base64Decode(start, size, { psshData }, Base64ValidatePadding)) {
++            LOG(EME, "EME - Cannot decode base64");
++            return nullptr;
++        }
++
++        return SharedBuffer::create(WTFMove(psshData));
++    }
+ }
+ 
+ static RefPtr<SharedBuffer> sanitizeWebM(const SharedBuffer& buffer)
+-- 
+2.17.1
+

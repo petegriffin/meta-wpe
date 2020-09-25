@@ -1,0 +1,48 @@
+From 394e33533ddd580dcea0aae5994f0c71806b2ab4 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@nxp.com>
+Date: Mon, 16 Dec 2019 12:40:03 -0500
+Subject: [PATCH 3/9] [GSTREAMER][EME] Support unencrypted content when SDP is
+ enabled
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@nxp.com>
+---
+ ...bKitCommonEncryptionDecryptorGStreamer.cpp | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
+index 2d81f16d5c8..96896af7c29 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
++++ b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
+@@ -238,7 +238,29 @@ static GstFlowReturn webkitMediaCommonEncryptionDecryptTransformInPlace(GstBaseT
+ 
+     GstProtectionMeta* protectionMeta = reinterpret_cast<GstProtectionMeta*>(gst_buffer_get_protection_meta(buffer));
+     if (!protectionMeta) {
++
++#ifdef ENABLE_SECURE_DATA_PATH
++        GstMemory *memory = NULL;
++        unsigned int mem_count = 0;
++
++        GST_TRACE_OBJECT(self, "buffer %p has no protection meta, assuming it's not encrypted and perform passthrough", buffer);
++
++        // out_buffer has GstMemory with type ionmem. Replace with source memory.
++        mem_count = gst_buffer_n_memory(buffer);
++        GST_DEBUG_OBJECT(self, "Source buffer has %u GstMemory", mem_count);
++
++        memory = gst_buffer_get_all_memory(buffer);
++        if(memory == NULL) {
++            GST_ERROR_OBJECT(self, "Invalid memory in source buffer");
++            return GST_FLOW_NOT_SUPPORTED;
++        }
++
++        gst_buffer_replace_all_memory(out_buffer, memory);
++
++#else
+         GST_TRACE_OBJECT(self, "buffer %p has no protection meta, assuming it's not encrypted", buffer);
++#endif
++
+         return GST_FLOW_OK;
+     }
+ 
+-- 
+2.17.1
+

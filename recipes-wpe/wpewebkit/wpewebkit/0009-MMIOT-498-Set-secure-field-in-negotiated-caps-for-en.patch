@@ -1,0 +1,65 @@
+From 4197d49be9ba353220831f1929fe6fe93d20bc4e Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Mon, 8 Jun 2020 16:36:21 -0400
+Subject: [PATCH 9/9] MMIOT-498: Set secure field in negotiated caps for
+ encrypted video
+
+Plus, in decide_allocation API, use this field to select the destination heap.
+When caps has secure=y, use the vpu secure heap (a.k.a optee heap). Otherwise,
+use the default allocator which will allocate the buffers in the system memory.
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ ...bKitCommonEncryptionDecryptorGStreamer.cpp | 22 +++++++++++--------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
+index 96896af7c29..c58e1d541d5 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
++++ b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
+@@ -153,6 +153,12 @@ static GstCaps* webkitMediaCommonEncryptionDecryptTransformCaps(GstBaseTransform
+             outgoingStructure = GUniquePtr<GstStructure>(gst_structure_copy(incomingStructure));
+             gst_structure_set_name(outgoingStructure.get(), gst_structure_get_string(outgoingStructure.get(), "original-media-type"));
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++            // Set secure field for encrypted video only
++            if(g_str_has_prefix(gst_structure_get_string(outgoingStructure.get(), "original-media-type"), "video"))
++                gst_structure_set(outgoingStructure.get(), "secure", G_TYPE_BOOLEAN, TRUE, nullptr);
++#endif
++
+             // Filter out the DRM related fields from the down-stream caps.
+             for (int j = 0; j < gst_structure_n_fields(incomingStructure); ++j) {
+                 const gchar* fieldName = gst_structure_nth_field_name(incomingStructure, j);
+@@ -659,7 +665,6 @@ static gboolean webkitMediaCommonEncryptionDecryptDecideAllocation(GstBaseTransf
+ 
+   {
+     GstStructure* structure = NULL;
+-    const char* structureName = NULL;
+     guint structureCount = 0;
+     guint ii = 0;
+ 
+@@ -668,14 +673,13 @@ static gboolean webkitMediaCommonEncryptionDecryptDecideAllocation(GstBaseTransf
+         GST_WARNING_OBJECT(trans, "Output caps has multiple structures.");
+     }
+     for(ii = 0; ii < structureCount; ii++) {
+-        structure = gst_caps_get_structure(outcaps, ii);
+-        structureName = gst_structure_get_name(structure);
+-        if(g_str_has_prefix(structureName, "video/")) {
+-            GST_DEBUG_OBJECT(trans, "Video stream detected: secure");
+-            secure = TRUE;
+-        } else {
+-            GST_DEBUG_OBJECT(trans, "Other stream detected: non-secure");
+-        }
++      structure = gst_caps_get_structure(outcaps, ii);
++      if(gst_structure_get_boolean(structure, "secure", &secure) && secure) {
++          GST_DEBUG_OBJECT(trans, "Secure stream detected");
++          secure = TRUE;
++      } else {
++          GST_DEBUG_OBJECT(trans, "Non-secure stream detected");
++      }
+     }
+   }
+ 
+-- 
+2.17.1
+

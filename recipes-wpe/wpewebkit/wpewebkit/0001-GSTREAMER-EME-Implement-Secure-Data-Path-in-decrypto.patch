@@ -1,0 +1,408 @@
+From 8f46a334419080d6d90a55b525468a8ce51c9e28 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Tue, 5 Nov 2019 17:17:00 -0500
+Subject: [PATCH 1/9] [GSTREAMER][EME] Implement Secure Data Path in decryptors
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ .../eme/WebKitClearKeyDecryptorGStreamer.cpp  |   2 +-
+ ...bKitCommonEncryptionDecryptorGStreamer.cpp | 217 +++++++++++++++++-
+ ...WebKitCommonEncryptionDecryptorGStreamer.h |   3 +-
+ .../eme/WebKitOpenCDMDecryptorGStreamer.cpp   |  33 ++-
+ Source/cmake/OptionsWPE.cmake                 |   4 +
+ 5 files changed, 253 insertions(+), 6 deletions(-)
+
+diff --git a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp
+index 3b831bb2e3a..5ffdf70e14f 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp
++++ b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp
+@@ -87,7 +87,7 @@ static void webkit_media_clear_key_decrypt_class_init(WebKitMediaClearKeyDecrypt
+ 
+     WebKitMediaCommonEncryptionDecryptClass* cencClass = WEBKIT_MEDIA_CENC_DECRYPT_CLASS(klass);
+     cencClass->setupCipher = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorSetupCipher);
+-    cencClass->decrypt = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorDecrypt);
++    cencClass->decrypt_ip = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorDecrypt);
+     cencClass->releaseCipher = GST_DEBUG_FUNCPTR(webKitMediaClearKeyDecryptorReleaseCipher);
+ 
+     g_type_class_add_private(klass, sizeof(WebKitMediaClearKeyDecryptPrivate));
+diff --git a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
+index 0391afaab59..2d81f16d5c8 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
++++ b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp
+@@ -20,6 +20,10 @@
+  * Boston, MA 02110-1335, USA.
+  */
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++#include <gst/allocators/gstionmemory.h>
++#endif
++
+ #include "config.h"
+ #include "WebKitCommonEncryptionDecryptorGStreamer.h"
+ 
+@@ -54,7 +58,12 @@ static GstStateChangeReturn webKitMediaCommonEncryptionDecryptorChangeState(GstE
+ static void webKitMediaCommonEncryptionDecryptorSetContext(GstElement*, GstContext*);
+ static void webKitMediaCommonEncryptionDecryptorFinalize(GObject*);
+ static GstCaps* webkitMediaCommonEncryptionDecryptTransformCaps(GstBaseTransform*, GstPadDirection, GstCaps*, GstCaps*);
++#ifdef ENABLE_SECURE_DATA_PATH
++static GstFlowReturn webkitMediaCommonEncryptionDecryptTransform(GstBaseTransform*, GstBuffer*, GstBuffer*);
++static gboolean webkitMediaCommonEncryptionDecryptDecideAllocation(GstBaseTransform*, GstQuery*);
++#else
+ static GstFlowReturn webkitMediaCommonEncryptionDecryptTransformInPlace(GstBaseTransform*, GstBuffer*);
++#endif
+ static gboolean webkitMediaCommonEncryptionDecryptSinkEventHandler(GstBaseTransform*, GstEvent*);
+ static void webkitMediaCommonEncryptionDecryptProcessProtectionEvents(WebKitMediaCommonEncryptionDecrypt*, Ref<WebCore::SharedBuffer>&&);
+ static bool webkitMediaCommonEncryptionDecryptIsCDMInstanceAvailable(WebKitMediaCommonEncryptionDecrypt*);
+@@ -78,7 +87,12 @@ static void webkit_media_common_encryption_decrypt_class_init(WebKitMediaCommonE
+     elementClass->set_context = GST_DEBUG_FUNCPTR(webKitMediaCommonEncryptionDecryptorSetContext);
+ 
+     GstBaseTransformClass* baseTransformClass = GST_BASE_TRANSFORM_CLASS(klass);
++#ifdef ENABLE_SECURE_DATA_PATH
++    baseTransformClass->transform = GST_DEBUG_FUNCPTR(webkitMediaCommonEncryptionDecryptTransform);
++    baseTransformClass->decide_allocation = GST_DEBUG_FUNCPTR(webkitMediaCommonEncryptionDecryptDecideAllocation);
++#else
+     baseTransformClass->transform_ip = GST_DEBUG_FUNCPTR(webkitMediaCommonEncryptionDecryptTransformInPlace);
++#endif
+     baseTransformClass->transform_caps = GST_DEBUG_FUNCPTR(webkitMediaCommonEncryptionDecryptTransformCaps);
+     baseTransformClass->transform_ip_on_passthrough = FALSE;
+     baseTransformClass->sink_event = GST_DEBUG_FUNCPTR(webkitMediaCommonEncryptionDecryptSinkEventHandler);
+@@ -99,7 +113,11 @@ static void webkit_media_common_encryption_decrypt_init(WebKitMediaCommonEncrypt
+     new (priv) WebKitMediaCommonEncryptionDecryptPrivate();
+ 
+     GstBaseTransform* base = GST_BASE_TRANSFORM(self);
++#ifdef ENABLE_SECURE_DATA_PATH
++    gst_base_transform_set_in_place(base, FALSE);
++#else
+     gst_base_transform_set_in_place(base, TRUE);
++#endif
+     gst_base_transform_set_passthrough(base, FALSE);
+     gst_base_transform_set_gap_aware(base, FALSE);
+ }
+@@ -209,7 +227,11 @@ static GstCaps* webkitMediaCommonEncryptionDecryptTransformCaps(GstBaseTransform
+     return transformedCaps;
+ }
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++static GstFlowReturn webkitMediaCommonEncryptionDecryptTransform(GstBaseTransform* base, GstBuffer* buffer, GstBuffer* out_buffer)
++#else
+ static GstFlowReturn webkitMediaCommonEncryptionDecryptTransformInPlace(GstBaseTransform* base, GstBuffer* buffer)
++#endif
+ {
+     WebKitMediaCommonEncryptionDecrypt* self = WEBKIT_MEDIA_CENC_DECRYPT(base);
+     WebKitMediaCommonEncryptionDecryptPrivate* priv = WEBKIT_MEDIA_CENC_DECRYPT_GET_PRIVATE(self);
+@@ -344,7 +366,11 @@ static GstFlowReturn webkitMediaCommonEncryptionDecryptTransformInPlace(GstBaseT
+ 
+     GstBuffer* ivBuffer = gst_value_get_buffer(value);
+     GST_TRACE_OBJECT(self, "decrypting");
+-    if (!klass->decrypt(self, keyIDBuffer, ivBuffer, buffer, subSampleCount, subSamplesBuffer)) {
++#ifdef ENABLE_SECURE_DATA_PATH
++    if (!klass->decrypt(self, keyIDBuffer, ivBuffer, buffer, subSampleCount, subSamplesBuffer, out_buffer)) {
++#else
++    if (!klass->decrypt_ip(self, keyIDBuffer, ivBuffer, buffer, subSampleCount, subSamplesBuffer)) {
++#endif
+         GST_ERROR_OBJECT(self, "Decryption failed");
+         klass->releaseCipher(self);
+         gst_buffer_remove_meta(buffer, reinterpret_cast<GstMeta*>(protectionMeta));
+@@ -555,6 +581,195 @@ static gboolean webkitMediaCommonEncryptionDecryptSinkEventHandler(GstBaseTransf
+     return result;
+ }
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++// Reference: gstreamer/libs/gst/base/gstbasetransform.c
++static gboolean webkitMediaCommonEncryptionDecryptDecideAllocation(GstBaseTransform * trans, GstQuery * query)
++{
++  guint i, n_metas;
++  GstBaseTransformClass *klass;
++  GstCaps *outcaps;
++  GstBufferPool *pool;
++  guint size, min, max;
++  GstAllocator *allocator;
++  GstAllocationParams params;
++  GstStructure *config;
++  gboolean update_allocator;
++  gboolean secure = FALSE;
++
++  klass = GST_BASE_TRANSFORM_GET_CLASS (trans);
++
++  n_metas = gst_query_get_n_allocation_metas (query);
++  for (i = 0; i < n_metas; i++) {
++    GType api;
++    const GstStructure *params;
++    gboolean remove;
++
++    api = gst_query_parse_nth_allocation_meta (query, i, &params);
++
++    /* by default we remove all metadata, subclasses should implement a
++     * filter_meta function */
++    if (gst_meta_api_type_has_tag (api, _gst_meta_tag_memory)) {
++      /* remove all memory dependent metadata because we are going to have to
++       * allocate different memory for input and output. */
++      GST_LOG_OBJECT (trans, "removing memory specific metadata %s",
++          g_type_name (api));
++      remove = TRUE;
++    } else if (G_LIKELY (klass->filter_meta)) {
++      /* remove if the subclass said so */
++      remove = !klass->filter_meta (trans, query, api, params);
++      GST_LOG_OBJECT (trans, "filter_meta for api %s returned: %s",
++          g_type_name (api), (remove ? "remove" : "keep"));
++    } else {
++      GST_LOG_OBJECT (trans, "removing metadata %s", g_type_name (api));
++      remove = TRUE;
++    }
++
++    if (remove) {
++      gst_query_remove_nth_allocation_meta (query, i);
++      i--;
++      n_metas--;
++    }
++  }
++
++  gst_query_parse_allocation (query, &outcaps, NULL);
++
++  GST_DEBUG_OBJECT(trans, "outcaps: %" GST_PTR_FORMAT, outcaps);
++
++  {
++    GstStructure* structure = NULL;
++    const char* structureName = NULL;
++    guint structureCount = 0;
++    guint ii = 0;
++
++    structureCount = gst_caps_get_size(outcaps);
++    if(structureCount > 1) {
++        GST_WARNING_OBJECT(trans, "Output caps has multiple structures.");
++    }
++    for(ii = 0; ii < structureCount; ii++) {
++        structure = gst_caps_get_structure(outcaps, ii);
++        structureName = gst_structure_get_name(structure);
++        if(g_str_has_prefix(structureName, "video/")) {
++            GST_DEBUG_OBJECT(trans, "Video stream detected: secure");
++            secure = TRUE;
++        } else {
++            GST_DEBUG_OBJECT(trans, "Other stream detected: non-secure");
++        }
++    }
++  }
++
++  if(secure) {
++
++  /* we got configuration from our peer or the decide_allocation method,
++   * parse them */
++  if (gst_query_get_n_allocation_params (query) > 0) {
++    /* try the allocator */
++    gst_query_parse_nth_allocation_param (query, 0, &allocator, &params);
++    update_allocator = TRUE;
++  } else {
++    allocator = NULL;
++    gst_allocation_params_init (&params);
++    update_allocator = FALSE;
++  }
++
++  if (gst_query_get_n_allocation_pools (query) > 0) {
++    gst_query_parse_nth_allocation_pool (query, 0, &pool, &size, &min, &max);
++
++    if (pool == NULL) {
++      /* no pool, we can make our own */
++      GST_DEBUG_OBJECT (trans, "no pool, making new pool");
++      pool = gst_buffer_pool_new ();
++    }
++  } else {
++    pool = NULL;
++    size = min = max = 0;
++  }
++
++  if (secure) {
++    GST_DEBUG("Clear pool and allocator");
++    if (allocator)
++      gst_object_unref (allocator);
++    allocator = NULL;
++    if (pool)
++      gst_object_unref (pool);
++    pool = NULL;
++  }
++
++  if (pool == NULL) {
++    /* no pool, we can make our own */
++    GST_DEBUG_OBJECT (trans, "no pool, making new pool");
++    pool = gst_buffer_pool_new ();
++  }
++
++  if(secure) {
++    GST_DEBUG("Obtain ION allocator VPU");
++    allocator = gst_ion_allocator_vpu_obtain();
++    if(allocator == NULL)
++      GST_ERROR("Cannot get ION allocator VPU");
++  }
++
++  /* now configure */
++  if (pool) {
++    GST_DEBUG("Config new pool");
++
++    config = gst_buffer_pool_get_config (pool);
++    gst_buffer_pool_config_set_params (config, outcaps, size, min, max);
++    gst_buffer_pool_config_set_allocator (config, allocator, &params);
++
++    /* buffer pool may have to do some changes */
++    if (!gst_buffer_pool_set_config (pool, config)) {
++      config = gst_buffer_pool_get_config (pool);
++
++      /* If change are not acceptable, fallback to generic pool */
++      if (!gst_buffer_pool_config_validate_params (config, outcaps, size, min,
++              max)) {
++        GST_DEBUG_OBJECT (trans, "unsuported pool, making new pool");
++
++        gst_object_unref (pool);
++        pool = gst_buffer_pool_new ();
++        gst_buffer_pool_config_set_params (config, outcaps, size, min, max);
++        gst_buffer_pool_config_set_allocator (config, allocator, &params);
++      }
++
++      if (!gst_buffer_pool_set_config (pool, config))
++        goto config_failed;
++    }
++  }
++
++  if(secure) {
++    GST_DEBUG("Update allocator");
++    if (update_allocator)
++      gst_query_set_nth_allocation_param (query, 0, allocator, &params);
++    else
++      gst_query_add_allocation_param (query, allocator, &params);
++    if (allocator)
++      gst_object_unref (allocator);
++  }
++
++  GST_DEBUG("Update pool (skip)");
++  if (pool) {
++    /*if (gst_query_get_n_allocation_pools (query) > 0) {
++        gst_query_set_nth_allocation_pool (query, 0, pool, size, min, max);
++    } else {
++        gst_query_add_allocation_pool (query, pool, size, min, max);
++    }*/
++    gst_object_unref (pool);
++  }
++  }
++
++  return TRUE;
++
++config_failed:
++  if (pool)
++    gst_object_unref (pool);
++
++  GST_ELEMENT_ERROR (trans, RESOURCE, SETTINGS,
++      ("Failed to configure the buffer pool"),
++      ("Configuration is most likely invalid, please report this issue."));
++  return FALSE;
++}
++#endif
++
++
+ static GstStateChangeReturn webKitMediaCommonEncryptionDecryptorChangeState(GstElement* element, GstStateChange transition)
+ {
+     WebKitMediaCommonEncryptionDecrypt* self = WEBKIT_MEDIA_CENC_DECRYPT(element);
+diff --git a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.h b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.h
+index 49e42799266..00ff9e0c414 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.h
++++ b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.h
+@@ -60,7 +60,8 @@ struct _WebKitMediaCommonEncryptionDecryptClass {
+     GstBaseTransformClass parentClass;
+ 
+     bool (*setupCipher)(WebKitMediaCommonEncryptionDecrypt*, GstBuffer*);
+-    bool (*decrypt)(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* keyIDBuffer, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSamplesCount, GstBuffer* subSamplesBuffer);
++    bool (*decrypt_ip)(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* keyIDBuffer, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSamplesCount, GstBuffer* subSamplesBuffer);
++    bool (*decrypt)(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* keyIDBuffer, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSamplesCount, GstBuffer* subSamplesBuffer, GstBuffer* dec_buffer);
+     void (*releaseCipher)(WebKitMediaCommonEncryptionDecrypt*);
+     void (*receivedProtectionEvent)(WebKitMediaCommonEncryptionDecrypt*, unsigned);
+     bool (*handleKeyId)(WebKitMediaCommonEncryptionDecrypt*, const WebCore::SharedBuffer&);
+diff --git a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitOpenCDMDecryptorGStreamer.cpp b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitOpenCDMDecryptorGStreamer.cpp
+index fe481c4a855..04cf9cb8ef9 100644
+--- a/Source/WebCore/platform/graphics/gstreamer/eme/WebKitOpenCDMDecryptorGStreamer.cpp
++++ b/Source/WebCore/platform/graphics/gstreamer/eme/WebKitOpenCDMDecryptorGStreamer.cpp
+@@ -33,6 +33,15 @@
+ #include <wtf/PrintStream.h>
+ #include <wtf/text/WTFString.h>
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <sys/mman.h>
++#include <gst/allocators/gstdmabuf.h>
++#endif
++
+ #define GST_WEBKIT_OPENCDM_DECRYPT_GET_PRIVATE(obj) (G_TYPE_INSTANCE_GET_PRIVATE((obj), WEBKIT_TYPE_OPENCDM_DECRYPT, WebKitOpenCDMDecryptPrivate))
+ 
+ using WebCore::GstMappedBuffer;
+@@ -44,7 +53,13 @@ struct _WebKitOpenCDMDecryptPrivate {
+ };
+ 
+ static void webKitMediaOpenCDMDecryptorFinalize(GObject*);
+-static bool webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* keyIDBuffer, GstBuffer* iv, GstBuffer* sample, unsigned subSamplesCount, GstBuffer* subSamples);
++
++#ifdef ENABLE_SECURE_DATA_PATH
++static bool webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* keyIDBuffer, GstBuffer* iv, GstBuffer* sample, unsigned subSamplesCount, GstBuffer* subSamples, GstBuffer* decBuffer);
++#else
++static bool webKitMediaOpenCDMDecryptorDecryptInPlace(WebKitMediaCommonEncryptionDecrypt*, GstBuffer* keyIDBuffer, GstBuffer* iv, GstBuffer* sample, unsigned subSamplesCount, GstBuffer* subSamples);
++#endif
++
+ static bool webKitMediaOpenCDMDecryptorHandleKeyId(WebKitMediaCommonEncryptionDecrypt* self, const WebCore::SharedBuffer&);
+ static bool webKitMediaOpenCDMDecryptorAttemptToDecryptWithLocalInstance(WebKitMediaCommonEncryptionDecrypt* self, const WebCore::SharedBuffer&);
+ 
+@@ -124,7 +139,11 @@ static void webkit_media_opencdm_decrypt_class_init(WebKitOpenCDMDecryptClass* k
+ 
+     WebKitMediaCommonEncryptionDecryptClass* cencClass = WEBKIT_MEDIA_CENC_DECRYPT_CLASS(klass);
+     cencClass->handleKeyId = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorHandleKeyId);
++#ifdef ENABLE_SECURE_DATA_PATH
+     cencClass->decrypt = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorDecrypt);
++#else
++    cencClass->decrypt_ip = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorDecryptInPlace);
++#endif
+     cencClass->attemptToDecryptWithLocalInstance = GST_DEBUG_FUNCPTR(webKitMediaOpenCDMDecryptorAttemptToDecryptWithLocalInstance);
+ 
+     g_type_class_add_private(klass, sizeof(WebKitOpenCDMDecryptPrivate));
+@@ -184,9 +203,17 @@ static bool webKitMediaOpenCDMDecryptorAttemptToDecryptWithLocalInstance(WebKitM
+     return webKitMediaOpenCDMDecryptorResetSessionFromKeyIdIfNeeded(self, keyId) != InvalidSession;
+ }
+ 
+-static bool webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt* self, GstBuffer* keyIDBuffer, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSampleCount, GstBuffer* subSamplesBuffer)
++
++#ifdef ENABLE_SECURE_DATA_PATH
++static bool webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecrypt* self, GstBuffer* keyIDBuffer, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSampleCount, GstBuffer* subSamplesBuffer, GstBuffer* decBuffer)
++#else
++static bool webKitMediaOpenCDMDecryptorDecryptInPlace(WebKitMediaCommonEncryptionDecrypt* self, GstBuffer* keyIDBuffer, GstBuffer* ivBuffer, GstBuffer* buffer, unsigned subSampleCount, GstBuffer* subSamplesBuffer)
++#endif
+ {
+     WebKitOpenCDMDecryptPrivate* priv = GST_WEBKIT_OPENCDM_DECRYPT_GET_PRIVATE(self);
++#ifndef ENABLE_SECURE_DATA_PATH
++    GstBuffer* decBuffer = NULL;
++#endif
+ 
+     GstMappedBuffer mappedKeyID(keyIDBuffer, GST_MAP_READ);
+     if (!mappedKeyID) {
+@@ -208,7 +235,7 @@ static bool webKitMediaOpenCDMDecryptorDecrypt(WebKitMediaCommonEncryptionDecryp
+ 
+     // Decrypt cipher.
+     GST_TRACE_OBJECT(self, "decrypting");
+-    if (int errorCode = opencdm_gstreamer_session_decrypt(priv->m_openCdmSession.get(), buffer, subSamplesBuffer, subSampleCount, ivBuffer, keyIDBuffer, 0)) {
++    if (int errorCode = opencdm_gstreamer_session_decrypt(priv->m_openCdmSession.get(), buffer, subSamplesBuffer, subSampleCount, ivBuffer, keyIDBuffer, 0, decBuffer)) {
+         GST_ERROR_OBJECT(self, "subsample decryption failed, error code %d", errorCode);
+         return false;
+     }
+diff --git a/Source/cmake/OptionsWPE.cmake b/Source/cmake/OptionsWPE.cmake
+index b0f081f2af0..e18509d17d0 100644
+--- a/Source/cmake/OptionsWPE.cmake
++++ b/Source/cmake/OptionsWPE.cmake
+@@ -163,6 +163,10 @@ add_definitions(-DBUILDING_WPE__=1)
+ add_definitions(-DGETTEXT_PACKAGE="WPE")
+ add_definitions(-DJSC_GLIB_API_ENABLED)
+ 
++if (ENABLE_SECURE_DATA_PATH)
++    add_definitions(-DENABLE_SECURE_DATA_PATH=1)
++endif ()
++
+ SET_AND_EXPOSE_TO_BUILD(USE_CAIRO TRUE)
+ SET_AND_EXPOSE_TO_BUILD(USE_EGL TRUE)
+ SET_AND_EXPOSE_TO_BUILD(USE_GCRYPT TRUE)
+-- 
+2.17.1
+
