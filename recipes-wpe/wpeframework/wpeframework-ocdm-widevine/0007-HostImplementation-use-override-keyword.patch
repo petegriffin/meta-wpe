@@ -1,0 +1,64 @@
+From 3ea72ccfd46d5170919337a3a69a1300785edb6c Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 27 Feb 2020 16:27:14 +0100
+Subject: [PATCH 07/17] HostImplementation: use override keyword
+
+The override.h header is no longer in ce_cdm v15 which
+in previous cdms defined OVERIDE to override.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: I2587d538988b856616fcee4b7f83cdf79e74caf7
+---
+ HostImplementation.h | 21 ++++++++++-----------
+ 1 file changed, 10 insertions(+), 11 deletions(-)
+
+diff --git a/HostImplementation.h b/HostImplementation.h
+index c7c8048..c410a50 100644
+--- a/HostImplementation.h
++++ b/HostImplementation.h
+@@ -2,7 +2,6 @@
+ #define WIDEVINE_HOST_IMPLEMENTATION_H
+ 
+ #include "cdm.h"
+-#include "override.h"
+ 
+ #include <core/core.h>
+ 
+@@ -66,24 +65,24 @@ public:
+   inline void SaveProvisioningInformation() { 
+     _saveDeviceCert = true; 
+   }
+- 
++
+   // widevine::Cdm::IStorage implementation
+   // ---------------------------------------------------------------------------
+-  virtual bool read(const std::string& name, std::string* data) OVERRIDE;
+-  virtual bool write(const std::string& name, const std::string& data) OVERRIDE;
+-  virtual bool exists(const std::string& name) OVERRIDE;
+-  virtual bool remove(const std::string& name) OVERRIDE;
+-  virtual int32_t size(const std::string& name) OVERRIDE;
+-  virtual bool list(std::vector<std::string>* names) OVERRIDE;
++  virtual bool read(const std::string& name, std::string* data) override;
++  virtual bool write(const std::string& name, const std::string& data) override;
++  virtual bool exists(const std::string& name) override;
++  virtual bool remove(const std::string& name) override;
++  virtual int32_t size(const std::string& name) override;
++  virtual bool list(std::vector<std::string>* names) override;
+ 
+   // widevine::Cdm::IClock implementation
+   // ---------------------------------------------------------------------------
+-  virtual int64_t now() OVERRIDE;
++  virtual int64_t now();
+ 
+   // widevine::Cdm::ITimer implementation
+   // ---------------------------------------------------------------------------
+-  virtual void setTimeout(int64_t delay_ms, IClient* client, void* context) OVERRIDE;
+-  virtual void cancel(IClient* client) OVERRIDE;
++  virtual void setTimeout(int64_t delay_ms, IClient* client, void* context);
++  virtual void cancel(IClient* client);
+ 
+ private:
+   bool _saveDeviceCert;
+-- 
+2.17.1
+

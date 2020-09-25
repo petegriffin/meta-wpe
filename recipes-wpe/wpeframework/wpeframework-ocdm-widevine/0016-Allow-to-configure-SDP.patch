@@ -1,0 +1,91 @@
+From 36b1407fed06b844bd8969def4f17ada0c8aa55f Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Fri, 20 Mar 2020 09:47:00 -0400
+Subject: [PATCH 16/17] Allow to configure SDP
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ CMakeLists.txt   | 4 ++++
+ MediaSession.cpp | 9 ++++-----
+ MediaSystem.cpp  | 4 +---
+ 3 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 204c7fa..4c52f9b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -28,4 +28,8 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE ${PLUGIN_LIBS} ${NAMESPACE}Core::${
+ set_target_properties(${PLUGIN_NAME} PROPERTIES SUFFIX ".drm")
+ set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
+ 
++if("${SECURE_DATA_PATH}" STREQUAL "ON")
++    add_definitions(-DENABLE_SECURE_DATA_PATH=1)
++endif()
++
+ install(TARGETS ${PLUGIN_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/share/${NAMESPACE}/OCDM)
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index 217a04e..5070c74 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -427,8 +427,7 @@ CDMi_RESULT MediaKeySession::Init(
+   return CDMi_SUCCESS;
+ }
+ 
+-#define ENABLE_SDP 1
+-#ifdef ENABLE_SDP
++#ifdef ENABLE_SECURE_DATA_PATH
+ typedef struct native_handle
+ {
+     int version;        /* sizeof(native_handle_t) */
+@@ -492,7 +491,7 @@ CDMi_RESULT MediaKeySession::Decrypt(
+       uint32_t subSampleCount = 0;
+       uint32_t offset = 0;
+ 
+-#ifdef ENABLE_SDP
++#ifdef ENABLE_SECURE_DATA_PATH
+       native_handle_t handle = {sizeof(native_handle_t), 2, 2, {0,0,0,0}};
+ #endif
+ 
+@@ -507,7 +506,7 @@ CDMi_RESULT MediaKeySession::Decrypt(
+         subSampleCount = f_cdwSubSampleMapping;
+       }
+ 
+-#ifdef ENABLE_SDP
++#ifdef ENABLE_SECURE_DATA_PATH
+       output.is_secure = (secureFd >= 0);
+ #else
+       output.is_secure = false;
+@@ -523,7 +522,7 @@ CDMi_RESULT MediaKeySession::Decrypt(
+           continue;
+         }
+ 
+-  #ifdef ENABLE_SDP
++  #ifdef ENABLE_SECURE_DATA_PATH
+         if(output.is_secure) {
+           handle.data[0] = secureFd;
+           handle.data[1] = -1; /* Shared memory. Not used for decryption. */
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index d502ba4..1e44d18 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -23,8 +23,6 @@
+ #include <sstream>
+ #include <sys/utsname.h>
+ 
+-#define ENABLE_SDP 1
+-
+ namespace CDMi {
+ 
+ class WideVine : public IMediaKeys, public widevine::Cdm::IEventListener
+@@ -65,7 +63,7 @@ public:
+         TRACE_L1("Built " << __DATE__ << " " << __TIME__ << std::endl);
+ 
+         if (widevine::Cdm::kSuccess == widevine::Cdm::initialize(
+-#ifdef ENABLE_SDP
++#ifdef ENABLE_SECURE_DATA_PATH
+                 widevine::Cdm::kOpaqueHandle,
+ #else
+                 widevine::Cdm::kNoSecureOutput,
+-- 
+2.17.1
+

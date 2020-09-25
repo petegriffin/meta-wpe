@@ -1,0 +1,64 @@
+From 4a42f491fbb62080d2cd8329323dd008db47b184 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Fri, 27 Mar 2020 16:47:16 +0100
+Subject: [PATCH 13/17] MediaSession: add cdm provisioning call flow.
+
+Previously we were using provisioning 1.0 which is now
+deprecated. In the latest ce_cdm v15 it is required to do
+a provisioning request to the prov server to get a
+unique device certificate prior to creating a session.
+
+This patch adds the CDM prov call flow and uses the new
+getProvisioningResponse method added previously to get
+the certificate from the server
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+Change-Id: Iea8f3823aa0e4500548537f5dd66d3de2c81dc50
+---
+ MediaSession.cpp | 29 +++++++++++++++++++++++++++--
+ 1 file changed, 27 insertions(+), 2 deletions(-)
+
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index 0ac2150..f030703 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -89,8 +89,33 @@ MediaKeySession::MediaKeySession(widevine::Cdm *cdm, int32_t licenseType)
+     , m_licenseType((widevine::Cdm::SessionType)licenseType)
+     , m_sessionId("") {
+ 
+-  if (widevine::Cdm::kSuccess != m_cdm->createSession(m_licenseType, &m_sessionId)) {
+-    TRACE_L1("%s:%d createSession error\n",__FUNCTION__, __LINE__);
++  widevine::Cdm::Status status;
++  std::string destUrl;
++  std::string message;
++  std::string reply;
++
++  if (!m_cdm->isProvisioned()) {
++    TRACE_L1("%s: isProvisioned() false", __FUNCTION__);
++
++    status = m_cdm->getProvisioningRequest(&message);
++    if (status != widevine::Cdm::kSuccess) {
++      TRACE_L1("%s: getProvisioningRequest() failed status=%s"
++               , __FUNCTION__, widevineStatusToCString(status));
++    }
++
++    reply = MediaKeySession::getProvisioningResponse(message);
++
++    status = m_cdm->handleProvisioningResponse(reply);
++    if (status != widevine::Cdm::kSuccess) {
++      TRACE_L1("%s: handleProvisioningResponse() failed status=%s"
++               , __FUNCTION__, widevineStatusToCString(status));
++    }
++  }
++
++  status = m_cdm->createSession(m_licenseType, &m_sessionId);
++  if (status != widevine::Cdm::kSuccess) {
++    TRACE_L1("%s: createSession() failed status=%s\n"
++             , __FUNCTION__, widevineStatusToCString(status));
+   }
+ 
+   ::memset(m_IV, 0 , sizeof(m_IV));;
+-- 
+2.17.1
+

@@ -1,0 +1,40 @@
+From 9543e0038a99261c7f04fc001b852ca973113b40 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Mon, 13 Jan 2020 16:09:25 -0500
+Subject: [PATCH 15/17] [OCDM] Configure to use opaque handle for SDP
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ MediaSystem.cpp | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index ce36246..d502ba4 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -23,6 +23,8 @@
+ #include <sstream>
+ #include <sys/utsname.h>
+ 
++#define ENABLE_SDP 1
++
+ namespace CDMi {
+ 
+ class WideVine : public IMediaKeys, public widevine::Cdm::IEventListener
+@@ -63,7 +65,12 @@ public:
+         TRACE_L1("Built " << __DATE__ << " " << __TIME__ << std::endl);
+ 
+         if (widevine::Cdm::kSuccess == widevine::Cdm::initialize(
+-                widevine::Cdm::kNoSecureOutput, client_info, &_host, &_host, &_host, static_cast<widevine::Cdm::LogLevel>(4))) {
++#ifdef ENABLE_SDP
++                widevine::Cdm::kOpaqueHandle,
++#else
++                widevine::Cdm::kNoSecureOutput,
++#endif
++                client_info, &_host, &_host, &_host, static_cast<widevine::Cdm::LogLevel>(0))) {
+ 	    // Setting the last parameter to true, requres serviceCertificates so the requests can be encrypted. Currently badly supported
+             // in the EME tests, so turn off for now :-)
+             _cdm = widevine::Cdm::create(this, &_host, false);
+-- 
+2.17.1
+

@@ -1,0 +1,46 @@
+From 2e8fc4ec75d4182dd26cc5179a7b46f26a0196e2 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Mon, 9 Mar 2020 21:06:04 +0100
+Subject: [PATCH 08/17] MediaSession: add back
+ onDirectIndividualizationRequest()
+
+TODO/REVISIT This callback should no longer be required,
+but once it was removed ocdm-widevine didn't get loaded
+at all.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: I2d6a6ce5bb798e91b81cac19c1f62ce1fff9dbea
+---
+ MediaSession.cpp | 3 +++
+ MediaSession.h   | 1 +
+ 2 files changed, 4 insertions(+)
+
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index fdc96ef..e553bbf 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -232,6 +232,9 @@ void MediaKeySession::onRemoveComplete() {
+ void MediaKeySession::onDeferredComplete(widevine::Cdm::Status) {
+ }
+ 
++void MediaKeySession::onDirectIndividualizationRequest(const string&) {
++}
++
+ CDMi_RESULT MediaKeySession::Load(void) {
+   CDMi_RESULT ret = CDMi_S_FALSE;
+   g_lock.Lock();
+diff --git a/MediaSession.h b/MediaSession.h
+index 98238d2..8448e94 100644
+--- a/MediaSession.h
++++ b/MediaSession.h
+@@ -84,6 +84,7 @@ public:
+     void onKeyStatusChange();
+     void onRemoveComplete();
+     void onDeferredComplete(widevine::Cdm::Status);
++    void onDirectIndividualizationRequest(const std::string&);
+ 
+ private:
+     void onKeyStatusError(widevine::Cdm::Status status);
+-- 
+2.17.1
+

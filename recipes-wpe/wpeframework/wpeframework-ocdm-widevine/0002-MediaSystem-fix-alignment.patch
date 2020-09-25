@@ -1,0 +1,39 @@
+From 658917d94444cf56447fd0cb1761c0eb3edeb04f Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 27 Feb 2020 13:27:07 +0100
+Subject: [PATCH 02/17] MediaSystem: fix alignment
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: I75a6098b0224b5ae39a708351862ed820d94b585
+---
+ MediaSystem.cpp | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index e32f780..94783ea 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -47,7 +47,7 @@ public:
+         client_info.company_name = "www.metrological.com";
+         client_info.model_name = "www";
+ 
+-    #if defined(__linux__)
++#if defined(__linux__)
+         client_info.device_name = "Linux";
+         {
+             struct utsname name;
+@@ -63,9 +63,9 @@ public:
+         // widevine::Cdm::DeviceCertificateRequest cert_request;
+ 
+         if (widevine::Cdm::kSuccess == widevine::Cdm::initialize(
+-                widevine::Cdm::kNoSecureOutput, client_info, &_host, &_host, &_host, static_cast<widevine::Cdm::LogLevel>(0))) {
++                widevine::Cdm::kNoSecureOutput, client_info, &_host, &_host, &_host, static_cast<widevine::Cdm::LogLevel>(4))) {
+ 	    // Setting the last parameter to true, requres serviceCertificates so the requests can be encrypted. Currently badly supported
+-            // in the EME tests, so turn of for now :-)
++            // in the EME tests, so turn off for now :-)
+             _cdm = widevine::Cdm::create(this, &_host, false);
+         }
+     }
+-- 
+2.17.1
+

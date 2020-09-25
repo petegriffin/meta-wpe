@@ -1,0 +1,119 @@
+From 6cff9c88e78d40543efe0a48bb609d692281a8b0 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Fri, 27 Mar 2020 00:27:24 +0100
+Subject: [PATCH 12/17] MediaSession: add getProvisioningResponse() method
+
+This commit adds support for sending the provisioning
+message to the google prov test server, and receiving
+the reply using libcurl library to manage socket
+communication / ssl and http protocol.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: Ic194dfe1d61e09998fd44e9ec174b7ee9e273d76
+---
+ CMakeLists.txt   |  2 +-
+ MediaSession.cpp | 54 ++++++++++++++++++++++++++++++++++++++++++++++++
+ MediaSession.h   |  2 ++
+ 3 files changed, 57 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0e29d6c..204c7fa 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -24,7 +24,7 @@ set(PLUGIN_SOURCES
+ add_library(${PLUGIN_NAME} SHARED ${PLUGIN_SOURCES})
+ target_compile_definitions(${PLUGIN_NAME} PRIVATE ${WIDEVINE_FLAGS})
+ target_include_directories(${PLUGIN_NAME} PRIVATE ${PLUGINS_INCLUDE_DIR} ${WIDEVINE_INCLUDE_DIRS})
+-target_link_libraries(${PLUGIN_NAME} PRIVATE ${PLUGIN_LIBS} ${NAMESPACE}Core::${NAMESPACE}Core ${WIDEVINE_LIBRARIES} ssl)
++target_link_libraries(${PLUGIN_NAME} PRIVATE ${PLUGIN_LIBS} ${NAMESPACE}Core::${NAMESPACE}Core ${WIDEVINE_LIBRARIES} ssl curl)
+ set_target_properties(${PLUGIN_NAME} PROPERTIES SUFFIX ".drm")
+ set_target_properties(${PLUGIN_NAME} PROPERTIES PREFIX "")
+ 
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index ae04e94..0ac2150 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -29,6 +29,8 @@
+ 
+ #include <core/core.h>
+ 
++#include <curl/curl.h>
++
+ #define NYI_KEYSYSTEM "keysystem-placeholder"
+ 
+ using namespace std;
+@@ -94,6 +96,58 @@ MediaKeySession::MediaKeySession(widevine::Cdm *cdm, int32_t licenseType)
+   ::memset(m_IV, 0 , sizeof(m_IV));;
+ }
+ 
++//callback called by libcurl for writing received data
++size_t LibcurlWriteMemoryCallback(void *contents, size_t size, size_t nmemb, std::string *str)
++{
++  size_t realsize = size * nmemb;
++  TRACE_L1("%s: realsize=%zx", __FUNCTION__, realsize);
++  str->append(reinterpret_cast<const char*>(contents), realsize);
++  return realsize;
++}
++
++std::string MediaKeySession::getProvisioningResponse(const std::string& message) {
++  std::string reply;
++  // Google test provisioning server TODO this should be configurable in some way
++  std::string uri = "https://staging-www.sandbox.googleapis.com/certificateprovisioning/v1/devicecertificates/create?key=AIzaSyB-5OLKTx2iU5mko18DfdwK5611JIjbUhE";
++  CURL *curl;
++  CURLcode res;
++
++  uri += "&signedRequest=" + message;
++
++  //In windows, this will init the winsock stuff
++  curl_global_init(CURL_GLOBAL_ALL);
++
++  curl = curl_easy_init();
++  if(curl) {
++    curl_easy_setopt(curl, CURLOPT_URL, uri.c_str());
++
++    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
++
++    //send all data to this function
++    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &LibcurlWriteMemoryCallback);
++
++    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&reply);
++    //some servers require UA string. ce_cdm test code sends the following
++    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Widevine CDM v1.0");
++
++    //perform the request, res will get the return code
++    res = curl_easy_perform(curl);
++
++    if(res != CURLE_OK) {
++      TRACE_L1("curl_easy_perform() failed: %s", curl_easy_strerror(res));
++     } else {
++      //dump the prov server reply
++      TRACE_L1("curl_easy_perform() ok res = %d", res);
++      TRACE_L1("response = %s", reply.c_str());
++    }
++
++    curl_easy_cleanup(curl);
++  }
++  curl_global_cleanup();
++
++  return reply;
++}
++
+ MediaKeySession::~MediaKeySession(void) {
+ }
+ 
+diff --git a/MediaSession.h b/MediaSession.h
+index 8448e94..f533a1e 100644
+--- a/MediaSession.h
++++ b/MediaSession.h
+@@ -33,6 +33,8 @@ public:
+ 
+     void* RunThread(int i);
+ 
++    std::string getProvisioningResponse(const std::string& message);
++
+     virtual CDMi_RESULT Load();
+ 
+     virtual void Update(
+-- 
+2.17.1
+

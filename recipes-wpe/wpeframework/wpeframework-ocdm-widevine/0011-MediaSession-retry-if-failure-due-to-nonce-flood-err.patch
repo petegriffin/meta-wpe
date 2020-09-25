@@ -1,0 +1,71 @@
+From 0e35f91f64aba55adeee6be2530dc15f0b51b3e6 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Mon, 23 Mar 2020 18:15:34 +0100
+Subject: [PATCH 11/17] MediaSession: retry if failure due to nonce flood error
+
+Make update() and generateRequest() retry if the failure
+was due to nonce flood error.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: Ia32cc33798b7ff6691ac146f4a94e282e6fe8a1c
+---
+ MediaSession.cpp | 33 ++++++++++++++++++++++++++++++---
+ 1 file changed, 30 insertions(+), 3 deletions(-)
+
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index 4c78022..ae04e94 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -103,7 +103,19 @@ void MediaKeySession::Run(const IMediaKeySessionCallback *f_piMediaKeySessionCal
+   if (f_piMediaKeySessionCallback) {
+     m_piCallback = const_cast<IMediaKeySessionCallback*>(f_piMediaKeySessionCallback);
+ 
+-    widevine::Cdm::Status status = m_cdm->generateRequest(m_sessionId, m_initDataType, m_initData);
++    const int retry_num = 5;
++    widevine::Cdm::Status status;
++    //retry several times if there is a nonce flood error
++    for (int i = 0; i < retry_num; i++) {
++      TRACE_L1("generateRequest() attempt %d", i);
++      status = m_cdm->generateRequest(m_sessionId, m_initDataType, m_initData);
++      if (status == widevine::Cdm::kQuotaExceeded) {
++        sleep(1);
++        continue;
++      }
++      break;
++    }
++
+     if (widevine::Cdm::kSuccess != status) {
+       TRACE_L1("%s: generateRequest() failed CdmStatus=%s", __FUNCTION__, widevineStatusToCString(status));
+       m_piCallback->OnKeyMessage((const uint8_t *) "", 0, "");
+@@ -250,11 +262,26 @@ CDMi_RESULT MediaKeySession::Load(void) {
+ void MediaKeySession::Update(
+     const uint8_t *f_pbKeyMessageResponse,
+     uint32_t f_cbKeyMessageResponse) {
++  const int retry_num = 5;
++  widevine::Cdm::Status status;
++
+   std::string keyResponse(reinterpret_cast<const char*>(f_pbKeyMessageResponse),
+       f_cbKeyMessageResponse);
+   g_lock.Lock();
+-  if (widevine::Cdm::kSuccess != m_cdm->update(m_sessionId, keyResponse))
+-     onKeyStatusChange();
++
++  //retry several times if there is a nonce flood error
++  for (int i = 0; i < retry_num; i++) {
++    TRACE_L1("Update() attempt=%d\n", i);
++    status = m_cdm->update(m_sessionId, keyResponse);
++    if (status == widevine::Cdm::kQuotaExceeded) {
++      sleep(1);
++      continue;
++    }
++    break;
++  }
++  if (status != widevine::Cdm::kSuccess)
++    onKeyStatusChange();
++
+   g_lock.Unlock();
+ }
+ 
+-- 
+2.17.1
+

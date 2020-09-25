@@ -1,0 +1,27 @@
+From ce9c91194a0e3cc1d63c1709d58e3d7e12b0b341 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Mon, 9 Mar 2020 21:07:53 +0100
+Subject: [PATCH 09/17] MediaSystem: add date/time as useful debug in the log
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: Id187d9ff520587d9dd088923eabf9379a77f2b7d
+---
+ MediaSystem.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index 61228d3..ce36246 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -60,7 +60,7 @@ public:
+ #endif
+         client_info.build_info = __DATE__;
+ 
+-        // widevine::Cdm::DeviceCertificateRequest cert_request;
++        TRACE_L1("Built " << __DATE__ << " " << __TIME__ << std::endl);
+ 
+         if (widevine::Cdm::kSuccess == widevine::Cdm::initialize(
+                 widevine::Cdm::kNoSecureOutput, client_info, &_host, &_host, &_host, static_cast<widevine::Cdm::LogLevel>(4))) {
+-- 
+2.17.1
+

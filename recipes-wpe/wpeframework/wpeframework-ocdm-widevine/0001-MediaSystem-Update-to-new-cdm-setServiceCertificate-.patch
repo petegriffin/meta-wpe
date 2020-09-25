@@ -1,0 +1,39 @@
+From 900fdb67123bf1c6068de2a7a03b709cb13105e5 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 27 Feb 2020 13:16:56 +0100
+Subject: [PATCH 01/17] MediaSystem: Update to new cdm::setServiceCertificate
+ prototype
+
+ce_cdm v15 requires a ServiceRole. To replicate the previous
+behavior, we pass `Cdm::kAllServices` to install the certificate
+for both services at the same time (Provisioning Service
+and Licensing Service.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: Ibf2fcb756c4e2104504ee39295590a19293be0b7
+---
+ MediaSystem.cpp | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index 6124309..e32f780 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -129,8 +129,13 @@ public:
+ 
+         CDMi_RESULT dr = CDMi_S_FALSE;
+ 
++        //ce_cdm v15 requires a ServiceRole
++        //To replicate the previous behavior, pass `Cdm::kAllServices` to install
++        //the certificate for both services at the same time (Provisioning Service
++        //and Licensing Service.
++
+         std::string serverCertificate(reinterpret_cast<const char*>(f_pbServerCertificate), f_cbServerCertificate);
+-        if (widevine::Cdm::kSuccess == _cdm->setServiceCertificate(serverCertificate)) {
++        if (widevine::Cdm::kSuccess == _cdm->setServiceCertificate(widevine::Cdm::kAllServices, serverCertificate)) {
+             dr = CDMi_SUCCESS;
+         }
+         return dr;
+-- 
+2.17.1
+

@@ -1,0 +1,37 @@
+From e8577336e34981f82db1ed04e90db06f5d609c64 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 27 Feb 2020 13:28:40 +0100
+Subject: [PATCH 03/17] MediaSystem: Update onKeyStatusesChange prototype
+
+It now takes an extra parameter bool has_new_usable_key.
+TODO: we should really propogate this to the next layer
+as well.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: Ie2ec2d56974929b7410ff62cf3460ad403507fb7
+---
+ MediaSystem.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index 94783ea..dcb3a48 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -174,12 +174,12 @@ public:
+         _adminLock.Unlock();
+     }
+ 
+-    virtual void onKeyStatusesChange(const std::string& session_id) {
++    virtual void onKeyStatusesChange(const std::string& session_id, bool has_new_usable_key) {
+ 
+         _adminLock.Lock();
+ 
+         SessionMap::iterator index (_sessions.find(session_id));
+-
++        //TODO ce_cdm should probably update MediaSession interface
+         if (index != _sessions.end()) index->second->onKeyStatusChange();
+ 
+         _adminLock.Unlock();
+-- 
+2.17.1
+

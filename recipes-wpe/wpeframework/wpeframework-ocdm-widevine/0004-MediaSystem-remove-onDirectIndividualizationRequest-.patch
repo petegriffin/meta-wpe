@@ -1,0 +1,52 @@
+From 79ac951f8708dce9f0d49d9d404f471b9bec1aa8 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 27 Feb 2020 13:45:41 +0100
+Subject: [PATCH 04/17] MediaSystem: remove onDirectIndividualizationRequest
+ callback
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+onDirectIndividualizationRequest() callback has now been removed.
+Prior to ce cdm v15 it would automatically generate provisoning
+requests and send them to IEventListener::onDirectIndividualizationRequest().
+
+But this is now deprecated and the callback no longer exists.
+
+Before opening any sessions or generating any license requests
+the called should verify the device is provisioned with
+isProvisioned(). If it isn't then getProvisioningRequest() and
+handleProvisioningResponse()​ can be used instead.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: I6d23ee444746fdb898f38e51cfebbfcec9862e18
+---
+ MediaSystem.cpp | 12 ------------
+ 1 file changed, 12 deletions(-)
+
+diff --git a/MediaSystem.cpp b/MediaSystem.cpp
+index dcb3a48..61228d3 100644
+--- a/MediaSystem.cpp
++++ b/MediaSystem.cpp
+@@ -208,18 +208,6 @@ public:
+         _adminLock.Unlock();
+     }
+ 
+-    // Called when the CDM requires a new device certificate
+-    virtual void onDirectIndividualizationRequest(const std::string& session_id, const std::string& request) {
+-
+-        _adminLock.Lock();
+-
+-        SessionMap::iterator index (_sessions.find(session_id));
+-
+-        if (index != _sessions.end()) index->second->onDirectIndividualizationRequest(request);
+-
+-        _adminLock.Unlock();
+-    }
+-
+ private:
+     WPEFramework::Core::CriticalSection _adminLock;
+     widevine::Cdm* _cdm;
+-- 
+2.17.1
+

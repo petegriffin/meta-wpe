@@ -1,0 +1,73 @@
+From 7195efe62f6f4d526cf964e07badca8621712974 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 12 Mar 2020 13:20:33 +0100
+Subject: [PATCH 06/17] MediaSession: add widevineStatusToCString() helper
+
+It allows us to print nicer logs in case of errors
+returned from the CDM.
+
+Currently it returns a C string like the other KeyStatus
+helper.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+Change-Id: I58183296284f3ffdd2bc2fb6b18a11755503e799
+---
+ MediaSession.cpp | 42 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 42 insertions(+)
+
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index d77d77c..fdc96ef 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -37,6 +37,48 @@ namespace CDMi {
+ 
+ WPEFramework::Core::CriticalSection g_lock;
+ 
++static const char* widevineStatusToCString(widevine::Cdm::Status Status)
++{
++  switch (Status) {
++  case widevine::Cdm::kSuccess:
++    return "Cdm::kSuccess";
++    break;
++  case widevine::Cdm::kNeedsDeviceCertificate:
++    return "Cdm::kNeedsDeviceCertificate";
++    break;
++  case widevine::Cdm::kSessionNotFound:
++    return "Cdm::kSessionNotFound";
++    break;
++  case widevine::Cdm::kDecryptError:
++    return "Cdm::kDecryptError";
++    break;
++  case widevine::Cdm::kNoKey:
++    return "Cdm::kNoKey";
++    break;
++  case widevine::Cdm::kTypeError:
++    return "Cdm::kTypeError";
++    break;
++  case widevine::Cdm::kNotSupported:
++    return "Cdm::kNotSupported";
++    break;
++  case widevine::Cdm::kInvalidState:
++    return "Cdm::kInvalidState";
++    break;
++  case widevine::Cdm::kQuotaExceeded:
++    return "Cdm::kQuotaExceeded";
++    break;
++  case widevine::Cdm::kRangeError:
++    return "Cdm::kRangeError";
++    break;
++  case widevine::Cdm::kUnexpectedError:
++    return "Cdm::kUnexpectedError";
++    break;
++  default:
++    return "Unknown Cdm::Status value";
++    break;
++  }
++}
++
+ MediaKeySession::MediaKeySession(widevine::Cdm *cdm, int32_t licenseType)
+     : m_cdm(cdm)
+     , m_CDMData("")
+-- 
+2.17.1
+
