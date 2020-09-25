@@ -1,0 +1,56 @@
+From 1fda2f03c9795ca69bd22db12c8219529570a71b Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Tue, 12 Nov 2019 14:02:14 -0500
+Subject: [PATCH 02/18] [OCDM] Communicate sub-sample data to OCDMi plugin
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ Source/ocdm/DataExchange.h  | 11 +++++++++++
+ Source/ocdm/open_cdm_impl.h |  2 +-
+ 2 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/Source/ocdm/DataExchange.h b/Source/ocdm/DataExchange.h
+index d9b35d7..b9311e9 100644
+--- a/Source/ocdm/DataExchange.h
++++ b/Source/ocdm/DataExchange.h
+@@ -111,6 +111,16 @@ public:
+         const Administration* admin = reinterpret_cast<const Administration*>(AdministrationBuffer());
+         return (admin->IVLength);
+     }
++    const uint8_t* SubSampleData() const
++    {
++        const Administration* admin = reinterpret_cast<const Administration*>(AdministrationBuffer());
++        return (admin->Sub);
++    }
++    const uint8_t SubSampleDataLength() const
++    {
++        const Administration* admin = reinterpret_cast<const Administration*>(AdministrationBuffer());
++        return (admin->SubLength);
++    }
+     void KeyId(const uint8_t length, const uint8_t buffer[])
+     {
+         Administration* admin = reinterpret_cast<Administration*>(AdministrationBuffer());
+@@ -120,6 +130,7 @@ public:
+             ::memcpy(&(admin->KeyId[1]), buffer, admin->KeyId[0]);
+         }
+     }
++
+     const uint8_t* KeyId(uint8_t& length) const
+     {
+         const Administration* admin = reinterpret_cast<const Administration*>(AdministrationBuffer());
+diff --git a/Source/ocdm/open_cdm_impl.h b/Source/ocdm/open_cdm_impl.h
+index b617116..e093264 100644
+--- a/Source/ocdm/open_cdm_impl.h
++++ b/Source/ocdm/open_cdm_impl.h
+@@ -409,7 +409,7 @@ private:
+             if (RequestProduce(WPEFramework::Core::infinite) == WPEFramework::Core::ERROR_NONE) {
+ 
+                 SetIV(static_cast<uint8_t>(ivDataLength), ivData);
+-                SetSubSampleData(0, nullptr);
++                SetSubSampleData(static_cast<uint16_t>(subSampleCount * sizeof(uint32_t)), (uint8_t *)subSampleMapping);
+                 KeyId(static_cast<uint8_t>(keyIdLength), keyId);
+                 InitWithLast15(initWithLast15);
+                 Write(encryptedDataLength, encryptedData);
+-- 
+2.17.1
+

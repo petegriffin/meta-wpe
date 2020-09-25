@@ -1,0 +1,398 @@
+From 2cd6f86baee22a97a3ebdcbfd7db398ea7b0c10e Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Tue, 5 Nov 2019 16:46:57 -0500
+Subject: [PATCH 05/18] [OCDM] Implement Secure Data Path support
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ Source/interfaces/IDRM.h                      |   4 +-
+ .../adapter/gstreamer/open_cdm_adapter.cpp    | 122 +++++++++++++++++-
+ Source/ocdm/adapter/open_cdm_adapter.h        |   2 +-
+ Source/ocdm/open_cdm.cpp                      |   8 +-
+ Source/ocdm/open_cdm.h                        |   8 +-
+ Source/ocdm/open_cdm_impl.h                   |  31 ++++-
+ 6 files changed, 160 insertions(+), 15 deletions(-)
+
+diff --git a/Source/interfaces/IDRM.h b/Source/interfaces/IDRM.h
+index 1d97818..4e41a8c 100644
+--- a/Source/interfaces/IDRM.h
++++ b/Source/interfaces/IDRM.h
+@@ -280,7 +280,9 @@ public:
+         uint8_t** f_ppbOpaqueClearContent,
+         const uint8_t keyIdLength,
+         const uint8_t* keyId,
+-        bool initWithLast15)
++        bool initWithLast15,
++        int secureFd,
++        uint32_t secureSize)
+         = 0;
+ 
+     virtual CDMi_RESULT ReleaseClearContent(
+diff --git a/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp b/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
+index c20f755..d2bec2f 100644
+--- a/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
++++ b/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
+@@ -3,12 +3,22 @@
+ 
+ #include <gst/gst.h>
+ #include <gst/base/gstbytereader.h>
++#include <gst/allocators/gstdmabuf.h>
++
++#define ENABLE_SECURE_DATA_PATH 1
+ 
+ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, GstBuffer* buffer, GstBuffer* subSampleBuffer, const uint32_t subSampleCount,
+-                                               GstBuffer* IV, GstBuffer* keyID, uint32_t initWithLast15)
++                                               GstBuffer* IV, GstBuffer* keyID, uint32_t initWithLast15, GstBuffer* decBuffer)
+ {
+     OpenCDMError result (ERROR_INVALID_SESSION);
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++    uint32_t *subSampleMapping = nullptr;
++    gint secureFd = -1;
++    uint32_t secureSize = 0;
++    gboolean secure = FALSE;
++#endif
++
+     if (session != nullptr) {
+         GstMapInfo dataMap;
+         if (gst_buffer_map(buffer, &dataMap, (GstMapFlags) GST_MAP_READ) == false) {
+@@ -43,6 +53,49 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+         uint32_t mappedDataSize = static_cast<uint32_t >(dataMap.size);
+         uint8_t *mappedIV = reinterpret_cast<uint8_t* >(ivMap.data);
+         uint32_t mappedIVSize = static_cast<uint32_t >(ivMap.size);
++
++#ifdef ENABLE_SECURE_DATA_PATH
++        GstMapInfo decMap;
++
++        if (gst_buffer_map(decBuffer, &decMap, static_cast<GstMapFlags>(GST_MAP_READWRITE)) == false) {
++            gst_buffer_unmap(buffer, &dataMap);
++            gst_buffer_unmap(IV, &ivMap);
++            gst_buffer_unmap(keyID, &keyIDMap);
++            printf("Invalid decrypted buffer.\n");
++            return (ERROR_INVALID_DECRYPT_BUFFER);
++        }
++
++        uint8_t *mappedDecData = reinterpret_cast<uint8_t* >(decMap.data);
++        uint32_t mappedDecDataSize = static_cast<uint32_t >(decMap.size);
++
++        // Copy source data to mapped memory (shared memory used for the metadata).
++        // For non-secure content, copy the data and perform the decryption in-place.
++        // TODO: Secure: Copy only the clear data
++        //       Non-secure: Copy everything to perform decryption in-place
++        memcpy(mappedDecData, mappedData, mappedDataSize);
++
++        // Retrieve secure ION file descriptor
++        if(gst_buffer_n_memory(decBuffer) != 1) {
++            printf("WARNING: Decrypted GstBuffer does not have exactly one GstMemory block\n");
++        }
++        GstMemory *decMem = gst_buffer_get_memory(decBuffer, 0);
++        {
++            const gchar *mem_type = decMem->allocator->mem_type;
++
++            if(g_strcmp0(mem_type, "ionmem") == 0) {
++                secureFd = gst_dmabuf_memory_get_fd(decMem);
++                gsize offset = 0;
++                gsize maxSize = 0;
++                secureSize = gst_memory_get_sizes (decMem, &offset, &maxSize);
++                secure = TRUE;
++            } else {
++                secureFd = -1;
++                secureSize = 0;
++                secure = FALSE;
++            }
++        }
++#endif
++
+         if (subSampleBuffer != nullptr) {
+             GstMapInfo sampleMap;
+             if (gst_buffer_map(subSampleBuffer, &sampleMap, GST_MAP_READ) == false) {
+@@ -54,6 +107,17 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+                 gst_buffer_unmap(buffer, &dataMap);
+                 return (ERROR_INVALID_DECRYPT_BUFFER);
+             }
++
++#ifdef ENABLE_SECURE_DATA_PATH
++            subSampleMapping = (uint32_t *)malloc(2 * subSampleCount * sizeof(uint32_t));
++            if (subSampleMapping == nullptr) {
++                printf("Failed to allocate memory for the sub-sample mapping\n");
++                // TODO: More cleaning is required
++                gst_buffer_unmap(subSampleBuffer, &sampleMap);
++                return (ERROR_INVALID_DECRYPT_BUFFER);
++            }
++#endif
++
+             uint8_t *mappedSubSample = reinterpret_cast<uint8_t* >(sampleMap.data);
+             uint32_t mappedSubSampleSize = static_cast<uint32_t >(sampleMap.size);
+             GstByteReader* reader = gst_byte_reader_new(mappedSubSample, mappedSubSampleSize);
+@@ -61,13 +125,31 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+             uint32_t inEncrypted = 0;
+             uint32_t totalEncrypted = 0;
+             for (unsigned int position = 0; position < subSampleCount; position++) {
++                uint32_t offset = 0;
+ 
+                 gst_byte_reader_get_uint16_be(reader, &inClear);
+                 gst_byte_reader_get_uint32_be(reader, &inEncrypted);
+                 totalEncrypted += inEncrypted;
++
++#ifdef ENABLE_SECURE_DATA_PATH
++                // Format the sub-sample mapping as an array of interleaved clear and encrypted data size. 
++                subSampleMapping[2 * position]     = inClear;
++                subSampleMapping[2 * position + 1] = inEncrypted;
++
++                // TODO For the secure content, trying to clear the encrypted content from the shared memory
++#if 0
++                // TODO: Restore this code
++                if(secure) {
++                    offset += inClear;
++                    memset(mappedDecData + offset, 0, inEncrypted);
++                    offset += inEncrypted;
++                }
++#endif
++#endif
+             }
+             gst_byte_reader_set_pos(reader, 0);
+ 
++#ifndef ENABLE_SECURE_DATA_PATH
+             uint8_t* encryptedData = reinterpret_cast<uint8_t*> (malloc(totalEncrypted));
+             uint8_t* encryptedDataIter = encryptedData;
+ 
+@@ -78,13 +160,14 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+                 gst_byte_reader_get_uint32_be(reader, &inEncrypted);
+ 
+                 memcpy(encryptedDataIter, mappedData + index + inClear, inEncrypted);
++
+                 index += inClear + inEncrypted;
+                 encryptedDataIter += inEncrypted;
+             }
+             gst_byte_reader_set_pos(reader, 0);
+ 
++            result = opencdm_session_decrypt(session, encryptedData, totalEncrypted, mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15/*, NULL, 0, -1, 0*/);
+ 
+-            result = opencdm_session_decrypt(session, encryptedData, totalEncrypted, mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15);
+             // Re-build sub-sample data.
+             index = 0;
+             unsigned total = 0;
+@@ -93,15 +176,39 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+                 gst_byte_reader_get_uint32_be(reader, &inEncrypted);
+ 
+                 memcpy(mappedData + total + inClear, encryptedData + index, inEncrypted);
++
+                 index += inEncrypted;
+                 total += inClear + inEncrypted;
+             }
+ 
+-            gst_byte_reader_free(reader);
+             free(encryptedData);
++#else
++            // TODO: Secure/non-secure may share the same call. It depends on the source buffer.
++            if(secure) {
++                result = opencdm_session_decrypt(session, mappedData, mappedDataSize, mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15, subSampleMapping, (2 * subSampleCount), secureFd, secureSize);
++            } else {
++                result = opencdm_session_decrypt(session, mappedDecData, mappedDecDataSize, mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15, subSampleMapping, (2 * subSampleCount), -1, 0);
++                printf("WARNING: Ignore error in opencdm_session_decrypt (non-secure) \n");
++                result = ERROR_NONE;
++            }
++#endif
++
++            gst_byte_reader_free(reader);
+             gst_buffer_unmap(subSampleBuffer, &sampleMap);
+         } else {
+-            result = opencdm_session_decrypt(session, mappedData, mappedDataSize,  mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15);
++#ifdef ENABLE_SECURE_DATA_PATH
++            if(secure) {
++                result = opencdm_session_decrypt(session, mappedData, mappedDataSize, mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15, NULL, 0, secureFd, secureSize);
++            } else {
++                result = opencdm_session_decrypt(session, mappedDecData, mappedDecDataSize, mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15, NULL, 0, -1, 0);
++                /*if(result != ERROR_NONE) {
++                    printf("WARNING: Ignore error in opencdm_session_decrypt (non-secure) \n");
++                    result = ERROR_NONE;
++                }*/
++            }
++#else
++            result = opencdm_session_decrypt(session, mappedData, mappedDataSize,  mappedIV, mappedIVSize, mappedKeyID, mappedKeyIDSize, initWithLast15/*, NULL, 0, -1, 0*/);
++#endif            
+         }
+ 
+         if (keyID != nullptr) {
+@@ -110,6 +217,13 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+ 
+         gst_buffer_unmap(IV, &ivMap);
+         gst_buffer_unmap(buffer, &dataMap);
++#ifdef ENABLE_SECURE_DATA_PATH
++        if(decMem) gst_memory_unref(decMem);
++        gst_buffer_unmap(decBuffer, &decMap);
++        if(subSampleMapping != nullptr) {
++            free(subSampleMapping);
++        }
++#endif
+     }
+ 
+     return (result);
+diff --git a/Source/ocdm/adapter/open_cdm_adapter.h b/Source/ocdm/adapter/open_cdm_adapter.h
+index 6721f1e..95532f9 100644
+--- a/Source/ocdm/adapter/open_cdm_adapter.h
++++ b/Source/ocdm/adapter/open_cdm_adapter.h
+@@ -26,7 +26,7 @@ extern "C" {
+  * \return Zero on success, non-zero on error.
+  */
+     OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, GstBuffer* buffer, GstBuffer* subSample, const uint32_t subSampleCount,
+-                                                   GstBuffer* IV, GstBuffer* keyID, uint32_t initWithLast15);
++                                                   GstBuffer* IV, GstBuffer* keyID, uint32_t initWithLast15, GstBuffer* decBuffer);
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/Source/ocdm/open_cdm.cpp b/Source/ocdm/open_cdm.cpp
+index 21d46a6..ca86379 100644
+--- a/Source/ocdm/open_cdm.cpp
++++ b/Source/ocdm/open_cdm.cpp
+@@ -91,7 +91,7 @@ KeyStatus CDMState(const OCDM::ISession::KeyStatus state)
+ }
+ 
+ /* static */ OpenCDMAccessor* OpenCDMAccessor::_singleton = nullptr;
+-
++ 
+ /**
+  * Destructs an \ref OpenCDMAccessor instance.
+  * \param system \ref OpenCDMAccessor instance to desctruct.
+@@ -451,13 +451,15 @@ OpenCDMError opencdm_session_decrypt(struct OpenCDMSession* session,
+     const uint32_t encryptedLength,
+     const uint8_t* IV, const uint16_t IVLength,
+     const uint8_t* keyId, const uint16_t keyIdLength,
+-    uint32_t initWithLast15 /* = 0 */)
++    uint32_t initWithLast15 /* = 0 */,
++    uint32_t *subSampleMapping, const uint32_t subSampleCount,
++    int secureFd, uint32_t secureSize)
+ {
+     OpenCDMError result(ERROR_INVALID_SESSION);
+ 
+     if (session != nullptr) {
+         result = encryptedLength > 0 ? static_cast<OpenCDMError>(session->Decrypt(
+-            encrypted, encryptedLength, IV, IVLength, keyId, keyIdLength, initWithLast15)) : ERROR_NONE;
++            encrypted, encryptedLength, IV, IVLength, keyId, keyIdLength, initWithLast15, subSampleMapping, subSampleCount, secureFd, secureSize)) : ERROR_NONE;
+     }
+ 
+     return (result);
+diff --git a/Source/ocdm/open_cdm.h b/Source/ocdm/open_cdm.h
+index 16a1667..6f61762 100644
+--- a/Source/ocdm/open_cdm.h
++++ b/Source/ocdm/open_cdm.h
+@@ -474,14 +474,18 @@ EXTERNAL OpenCDMError opencdm_session_decrypt(struct OpenCDMSession* session,
+     const uint32_t encryptedLength,
+     const uint8_t* IV, uint16_t IVLength,
+     const uint8_t* keyId, const uint16_t keyIdLength,
+-    uint32_t initWithLast15 = 0);
++    uint32_t initWithLast15 = 0,
++    uint32_t *subSampleMapping = NULL, const uint32_t subSampleCount = 0,
++    int secureFd = -1, uint32_t secureSize = 0);
+ #else
+ EXTERNAL OpenCDMError opencdm_session_decrypt(struct OpenCDMSession* session,
+     uint8_t encrypted[],
+     const uint32_t encryptedLength,
+     const uint8_t* IV, uint16_t IVLength,
+     const uint8_t* keyId, const uint16_t keyIdLength,
+-    uint32_t initWithLast15);
++    uint32_t initWithLast15,
++    uint32_t *subSampleMapping, const uint32_t subSampleCount,
++    int secureFd, uint32_t secureSize);
+ #endif // __cplusplus
+ 
+ #ifdef __cplusplus
+diff --git a/Source/ocdm/open_cdm_impl.h b/Source/ocdm/open_cdm_impl.h
+index e093264..c6ac300 100644
+--- a/Source/ocdm/open_cdm_impl.h
++++ b/Source/ocdm/open_cdm_impl.h
+@@ -4,6 +4,9 @@
+ #include "IOCDM.h"
+ #include "Module.h"
+ #include "open_cdm.h"
++#include "helper/socket_client_helper.h"
++
++#define ENABLE_SECURE_DATA_PATH 1
+ 
+ using namespace WPEFramework;
+ 
+@@ -310,6 +313,7 @@ private:
+     static OpenCDMAccessor* _singleton;
+ };
+ 
++
+ struct OpenCDMSession {
+ private:
+     using KeyStatusesMap = std::list<OCDM::KeyId>;
+@@ -376,6 +380,13 @@ private:
+ 
+             TRACE_L1("Constructing buffer client side: %p - %s", this,
+                 bufferName.c_str());
++
++#ifdef ENABLE_SECURE_DATA_PATH
++            TRACE_L1("Connect to socket (for SDP)");
++            if(_socket.Connect(0) != 0) {
++                TRACE_L1("Cannot connect to OCDM plugin (for SDP)");
++            }
++#endif
+         }
+         virtual ~DataExchange()
+         {
+@@ -390,7 +401,9 @@ private:
+         uint32_t Decrypt(uint8_t* encryptedData, uint32_t encryptedDataLength,
+             const uint8_t* ivData, uint16_t ivDataLength,
+             const uint8_t* keyId, uint16_t keyIdLength,
+-            uint32_t initWithLast15 /* = 0 */)
++            uint32_t initWithLast15 /* = 0 */,
++            uint32_t *subSampleMapping, const uint32_t subSampleCount,
++            int secureFd, uint32_t secureSize)
+         {
+             int ret = 0;
+ 
+@@ -414,6 +427,11 @@ private:
+                 InitWithLast15(initWithLast15);
+                 Write(encryptedDataLength, encryptedData);
+ 
++#ifdef ENABLE_SECURE_DATA_PATH
++                if(_socket.SendFileDescriptor(secureFd, secureSize) != 0) {
++                    TRACE_L1("Cannot send secure file descriptor");
++                }
++#endif
+                 // This will trigger the OpenCDMIServer to decrypt this memory...
+                 Produced();
+ 
+@@ -426,7 +444,7 @@ private:
+ 
+                     // Get the status of the last decrypt.
+                     ret = Status();
+-
++                    
+                     // And free the lock, for the next production Scenario..
+                     Consumed();
+                 }
+@@ -441,6 +459,9 @@ private:
+ 
+     private:
+         bool _busy;
++#ifdef ENABLE_SECURE_DATA_PATH
++        SocketClient _socket; /* Used to send the secure file descriptor to the OCDM plugin */
++#endif
+     };
+ 
+ public:
+@@ -577,13 +598,15 @@ public:
+     uint32_t Decrypt(uint8_t* encryptedData, const uint32_t encryptedDataLength,
+         const uint8_t* ivData, uint16_t ivDataLength,
+         const uint8_t* keyId, const uint16_t keyIdLength,
+-        uint32_t initWithLast15)
++        uint32_t initWithLast15,
++        uint32_t *subSampleMapping, const uint32_t subSampleCount,
++        int secureFd, uint32_t secureSize)
+     {
+         uint32_t result = OpenCDMError::ERROR_INVALID_DECRYPT_BUFFER;
+         if (_decryptSession != nullptr) {
+             result = _decryptSession->Decrypt(encryptedData, encryptedDataLength, ivData,
+                 ivDataLength, keyId, keyIdLength,
+-                initWithLast15);
++                initWithLast15, subSampleMapping, subSampleCount, secureFd, secureSize);
+             if(result)
+             {
+                 TRACE_L1("Decrypt() failed with return code: %x", result);
+-- 
+2.17.1
+

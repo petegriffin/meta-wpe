@@ -1,0 +1,103 @@
+From c935541d417cbd2d90507a16e83156561e4c84b5 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Wed, 6 Nov 2019 14:44:32 -0500
+Subject: [PATCH 04/18] [OCDM] Dependency on GStreamer allocators
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ Source/ocdm/CMakeLists.txt                   |  3 ++
+ cmake/modules/FindGSTREAMER_ALLOCATORS.cmake | 56 ++++++++++++++++++++
+ 2 files changed, 59 insertions(+)
+ create mode 100644 cmake/modules/FindGSTREAMER_ALLOCATORS.cmake
+
+diff --git a/Source/ocdm/CMakeLists.txt b/Source/ocdm/CMakeLists.txt
+index 98c8350..07e54b5 100644
+--- a/Source/ocdm/CMakeLists.txt
++++ b/Source/ocdm/CMakeLists.txt
+@@ -54,11 +54,13 @@ target_sources(${TARGET} PRIVATE helper/socket_client_helper.cpp)
+ 
+ find_package(GSTREAMER REQUIRED)
+ find_package(GSTREAMER_BASE REQUIRED)
++find_package(GSTREAMER_ALLOCATORS REQUIRED)
+ 
+ target_link_libraries(${TARGET}
+         PRIVATE
+         ${GSTREAMER_LIBRARIES}
+         ${GSTREAMER_BASE_LIBRARIES}
++        ${GSTREAMER_ALLOCATORS_LIBRARIES}
+         CompileSettingsDebug::CompileSettingsDebug
+         )
+ 
+@@ -66,6 +68,7 @@ target_include_directories( ${TARGET}
+         PRIVATE
+         ${GSTREAMER_INCLUDES}
+         ${GSTREAMER_BASE_INCLUDES}
++        ${GSTREAMER_ALLOCATORS_INCLUDES}
+         )
+ 
+ if (${CDMI_ADAPTER_IMPLEMENTATION} STREQUAL "broadcom-svp")
+diff --git a/cmake/modules/FindGSTREAMER_ALLOCATORS.cmake b/cmake/modules/FindGSTREAMER_ALLOCATORS.cmake
+new file mode 100644
+index 0000000..f70bdbf
+--- /dev/null
++++ b/cmake/modules/FindGSTREAMER_ALLOCATORS.cmake
+@@ -0,0 +1,56 @@
++# - Try to find bcm_host.
++# Once done, this will define
++#
++#  BCM_HOST_FOUND - the bcm_host is available
++#  BCM_HOST::BCM_HOST - The bcm_host library and all its dependecies
++#
++# Copyright (C) 2019 Metrological B.V
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++# 1.  Redistributions of source code must retain the above copyright
++#     notice, this list of conditions and the following disclaimer.
++# 2.  Redistributions in binary form must reproduce the above copyright
++#     notice, this list of conditions and the following disclaimer in the
++#     documentation and/or other materials provided with the distribution.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND ITS CONTRIBUTORS ``AS
++# IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
++# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR ITS
++# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
++# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
++# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
++# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
++# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++find_package(PkgConfig)
++pkg_check_modules(PC_GSTREAMER_ALLOCATORS gstreamer-allocators-1.0)
++
++include(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(PC_GSTREAMER_ALLOCATORS DEFAULT_MSG PC_GSTREAMER_ALLOCATORS_FOUND)
++
++mark_as_advanced(PC_GSTREAMER_ALLOCATORS_INCLUDE_DIRS PC_GSTREAMER_ALLOCATORS_LIBRARIES PC_GSTREAMER_ALLOCATORS_LIBRARY_DIRS)
++
++if(${PC_GSTREAMER_ALLOCATORS_FOUND})
++    set(GSTREAMER_LIBRARIES ${PC_GSTREAMER_ALLOCATORS_LIBRARIES})
++    set(GSTREAMER_INCLUDES ${PC_GSTREAMER_ALLOCATORS_INCLUDE_DIRS})
++    set(GSTREAMER_FOUND ${PC_GSTREAMER_ALLOCATORS_FOUND})
++
++    if(NOT TARGET GSTREAMER::GSTREAMER)
++        add_library(GSTREAMER::GSTREAMER UNKNOWN IMPORTED)
++
++        set_target_properties(GSTREAMER::GSTREAMER
++                PROPERTIES
++                IMPORTED_LINK_INTERFACE_LANGUAGES "C"
++                IMPORTED_LOCATION "${PC_GSTREAMER_ALLOCATORS_LIBRARY_DIRS}"
++                INTERFACE_COMPILE_DEFINITIONS "GSTREAMER"
++                INTERFACE_COMPILE_OPTIONS "${PC_GSTREAMER_ALLOCATORS_CFLAGS_OTHER}"
++                INTERFACE_INCLUDE_DIRECTORIES "${PC_GSTREAMER_ALLOCATORS_INCLUDE_DIRS}"
++                INTERFACE_LINK_LIBRARIES "${PC_GSTREAMER_ALLOCATORS_LIBRARIES}"
++                )
++    endif()
++endif()
+-- 
+2.17.1
+

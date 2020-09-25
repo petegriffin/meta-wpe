@@ -20,7 +20,25 @@ SRC_URI = "git://github.com/WebPlatformForEmbedded/WPEFramework.git \
            file://wpeframework.service.in \
            file://0001-Thread.cpp-Include-limits.h-for-PTHREAD_STACK_MIN-de.patch \
            "
-#DRM_PATCH
+
+SRC_URI += "file://0001-OCDM-Map-source-data-as-read-only.patch;md5sum=0020477af82e67fe4392336177d86a1c" 
+SRC_URI += "file://0002-OCDM-Communicate-sub-sample-data-to-OCDMi-plugin.patch;md5sum=9b5879063a27f1c89624183fe95cd285" 
+SRC_URI += "file://0003-OCDM-Add-socket-helper-class.patch;md5sum=e2bfcaa9dc074e62463f73a9fb7a9640" 
+SRC_URI += "file://0004-OCDM-Dependency-on-GStreamer-allocators.patch;md5sum=de994736d53ea5b699921d3571d2ccc5" 
+SRC_URI += "file://0005-OCDM-Implement-Secure-Data-Path-support.patch;md5sum=6901bc2d4bb716b4e03db8e6bac0839e" 
+SRC_URI += "file://0006-compositorClient-Wayland-Add-Pointer-hooks.patch;md5sum=fa4499a9995f9577864f811750f8b6d5" 
+SRC_URI += "file://0007-compositorClient-Weston.cpp-Glue-wl-pointer-events-t.patch;md5sum=0c8ac0d026cd8b79f5ef624233d4f327" 
+SRC_URI += "file://0008-compositorClient-Westeros-glue-wl-pointer-events-to-.patch;md5sum=1ff10d4ca0ad351fa46e1d79e1ad1e24" 
+SRC_URI += "file://0009-ocdm-Allow-to-configure-SDP.patch;md5sum=f71561dbbe7747b44291b081e19b8f80" 
+SRC_URI += "file://0010-Wayland-Weston-update-to-xdg_shell-stable-instead-of.patch;md5sum=c4a372c62a0ac72c6bedc0673f533fab" 
+SRC_URI += "file://0011-FindWestonClient.cmake-fix-a-few-errors.patch;md5sum=bc82f6ad33088021dbe3ec9bc882a191" 
+SRC_URI += "file://0012-FindWestonClient.cmake-Update-to-use-weston-desktop-.patch;md5sum=f35d03968177aa739bd666312533d074" 
+SRC_URI += "file://0013-remove-xdg-shell-unstable-v6-header.patch;md5sum=65957197c7b6a7b9d33437730b173c5f" 
+SRC_URI += "file://0014-Wayland-Add-xdg-shell-protocol-files.patch;md5sum=ee8d84a0ea2dbbedabbacd19d27acf5e" 
+SRC_URI += "file://0015-Wayland-CMakeLists.txt-Include-xdg-shell-protocol.c-.patch;md5sum=dd6647eb5073eed26ff638cdde39a185" 
+SRC_URI += "file://0016-FindWestonClient.cmake-Update-to-detect-that-Weston-.patch;md5sum=9ee1a44a91a9328b7b8377b6948f88e8" 
+SRC_URI += "file://0017-CMakeLists.txt-only-add-WesterosClient-library-depen.patch;md5sum=07d9c58216fbd6c589420a1f506940bd" 
+SRC_URI += "file://0018-MMIOT-570-remove-wl_pointer_listener.pointerMotion-l.patch;md5sum=ed9badbbf02d977fbda72697163182cc" 
 SRCREV = "76d4cab6ae0e9161ac2530f2564002ab4a8e0fb6"
 
 inherit cmake pkgconfig systemd update-rc.d

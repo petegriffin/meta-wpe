@@ -1,0 +1,39 @@
+From 25533444a4d504fa411e2e45ebf107a0c16c5c41 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Fri, 17 Jul 2020 14:10:21 +0100
+Subject: [PATCH 17/18] CMakeLists.txt: only add WesterosClient library
+ dependency for Westeros
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+---
+ Source/compositorclient/Wayland/CMakeLists.txt | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/Source/compositorclient/Wayland/CMakeLists.txt b/Source/compositorclient/Wayland/CMakeLists.txt
+index 656fccc..f1a21ea 100644
+--- a/Source/compositorclient/Wayland/CMakeLists.txt
++++ b/Source/compositorclient/Wayland/CMakeLists.txt
+@@ -25,7 +25,6 @@ target_link_libraries(${TARGET}
+         WaylandEGL::WaylandEGL
+         ${EGL_LIBRARIES}
+         ${NAMESPACE}Core::${NAMESPACE}Core
+-        ${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}Client::${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}Client
+         WaylandClient::WaylandClient)
+ 
+ set_target_properties(${TARGET} PROPERTIES
+@@ -35,6 +34,12 @@ set_target_properties(${TARGET} PROPERTIES
+         SOVERSION ${VERSION_MAJOR}
+ )
+ 
++if ("${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}" STREQUAL "Westeros")
++    target_link_libraries(${TARGET}
++        PRIVATE
++            ${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}Client::${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}Client)
++endif ()
++
+ if (NXCLIENT_FOUND)
+     target_link_libraries(${TARGET}
+         PRIVATE
+-- 
+2.17.1
+

@@ -1,0 +1,36 @@
+From 422e7b934bf7b232ef897e78e48ffb87fba80458 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 16 Jul 2020 15:51:22 +0100
+Subject: [PATCH 15/18] Wayland/CMakeLists.txt: Include xdg-shell-protocol.c if
+ building with Weston
+
+When using Thunder with Weston compositor we use xdg-stable protocol.
+Include the protocol file to avoid undefined symbols at runtime
+for  xdg_shell_interface symbols.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+---
+ Source/compositorclient/Wayland/CMakeLists.txt | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/Source/compositorclient/Wayland/CMakeLists.txt b/Source/compositorclient/Wayland/CMakeLists.txt
+index 942cf82..656fccc 100644
+--- a/Source/compositorclient/Wayland/CMakeLists.txt
++++ b/Source/compositorclient/Wayland/CMakeLists.txt
+@@ -11,7 +11,13 @@ find_package(WaylandEGL REQUIRED)
+ find_package(${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}Client REQUIRED)
+ find_package(NXCLIENT)
+ 
++if ("${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}" STREQUAL "Westeros")
+ add_library(${TARGET} SHARED ${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}.cpp)
++endif ()
++
++if ("${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}" STREQUAL "Weston")
++add_library(${TARGET} SHARED  ${PLUGIN_COMPOSITOR_SUB_IMPLEMENTATION}.cpp xdg-shell-client-protocol.c)
++endif ()
+ 
+ target_link_libraries(${TARGET}
+     PRIVATE
+-- 
+2.17.1
+

@@ -1,0 +1,56 @@
+From 174b4093694ef10e4ce4d7d6fa1094d4b6c4eacd Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Mon, 27 Jan 2020 21:48:34 -0500
+Subject: [PATCH 09/18] ocdm: Allow to configure SDP
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ Source/ocdm/CMakeLists.txt                         | 4 ++++
+ Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp | 2 --
+ Source/ocdm/open_cdm_impl.h                        | 2 --
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Source/ocdm/CMakeLists.txt b/Source/ocdm/CMakeLists.txt
+index 07e54b5..f888cf8 100644
+--- a/Source/ocdm/CMakeLists.txt
++++ b/Source/ocdm/CMakeLists.txt
+@@ -86,6 +86,10 @@ if (${CDMI_ADAPTER_IMPLEMENTATION} STREQUAL "broadcom-svp")
+             )
+ endif()
+ 
++if("${SECURE_DATA_PATH}" STREQUAL "ON")
++    add_definitions(-DENABLE_SECURE_DATA_PATH=1)
++endif()
++
+ set_target_properties(${TARGET} PROPERTIES
+         CXX_STANDARD 11
+         CXX_STANDARD_REQUIRED YES
+diff --git a/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp b/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
+index d2bec2f..b562584 100644
+--- a/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
++++ b/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
+@@ -5,8 +5,6 @@
+ #include <gst/base/gstbytereader.h>
+ #include <gst/allocators/gstdmabuf.h>
+ 
+-#define ENABLE_SECURE_DATA_PATH 1
+-
+ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, GstBuffer* buffer, GstBuffer* subSampleBuffer, const uint32_t subSampleCount,
+                                                GstBuffer* IV, GstBuffer* keyID, uint32_t initWithLast15, GstBuffer* decBuffer)
+ {
+diff --git a/Source/ocdm/open_cdm_impl.h b/Source/ocdm/open_cdm_impl.h
+index c6ac300..1ef1091 100644
+--- a/Source/ocdm/open_cdm_impl.h
++++ b/Source/ocdm/open_cdm_impl.h
+@@ -6,8 +6,6 @@
+ #include "open_cdm.h"
+ #include "helper/socket_client_helper.h"
+ 
+-#define ENABLE_SECURE_DATA_PATH 1
+-
+ using namespace WPEFramework;
+ 
+ extern Core::CriticalSection _systemLock;
+-- 
+2.17.1
+

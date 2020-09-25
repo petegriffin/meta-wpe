@@ -1,0 +1,26 @@
+From 70f07a3497642537204937c6484a98e37b06aed8 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Sat, 23 Nov 2019 01:16:37 -0500
+Subject: [PATCH 01/18] [OCDM] Map source data as read only
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp b/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
+index fd4b6da..c20f755 100644
+--- a/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
++++ b/Source/ocdm/adapter/gstreamer/open_cdm_adapter.cpp
+@@ -11,7 +11,7 @@ OpenCDMError opencdm_gstreamer_session_decrypt(struct OpenCDMSession* session, G
+ 
+     if (session != nullptr) {
+         GstMapInfo dataMap;
+-        if (gst_buffer_map(buffer, &dataMap, (GstMapFlags) GST_MAP_READWRITE) == false) {
++        if (gst_buffer_map(buffer, &dataMap, (GstMapFlags) GST_MAP_READ) == false) {
+             printf("Invalid buffer.\n");
+             return (ERROR_INVALID_DECRYPT_BUFFER);
+         }
+-- 
+2.17.1
+

@@ -1,0 +1,42 @@
+From 45439983ca42044d89c1cacb57c9a4721c763e9c Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 23 Jan 2020 13:36:31 +0100
+Subject: [PATCH 08/18] [compositorClient] Westeros glue wl pointer events to
+ hooks.
+
+Exactly the same fix but for Westeros compositor. Will
+allow pointer events to be propogated when wpebackend-rdk
+is configured for wpeframework.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+---
+ Source/compositorclient/Wayland/Westeros.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Source/compositorclient/Wayland/Westeros.cpp b/Source/compositorclient/Wayland/Westeros.cpp
+index 78028c8..a501506 100644
+--- a/Source/compositorclient/Wayland/Westeros.cpp
++++ b/Source/compositorclient/Wayland/Westeros.cpp
+@@ -185,15 +185,19 @@ static const struct wl_pointer_listener pointerListener = {
+     // pointerMotion
+     [](void* data, struct wl_pointer* pointer, uint32_t time, wl_fixed_t sx, wl_fixed_t sy) {
+         int x, y;
++        Wayland::Display& context = *(static_cast<Wayland::Display*>(data));
+ 
+         x = wl_fixed_to_int(sx);
+         y = wl_fixed_to_int(sy);
+ 
+         Trace("wl_pointer_listener.pointerMotion [%d,%d]\n", x, y);
++        context.PointerXY(x, y);
+     },
+     // pointerButton
+     [](void* data, struct wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
++        Wayland::Display& context = *(static_cast<Wayland::Display*>(data));
+         Trace("wl_pointer_listener.pointerButton [%u,%u]\n", button, state);
++        context.PointerButton(button, static_cast<Wayland::Display::IPointer::state>(state));
+     },
+     // pointerAxis
+     [](void* data, struct wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value) {
+-- 
+2.17.1
+

@@ -1,0 +1,69 @@
+From de426eab4178551884f1565cbbf78b9e5af1fd41 Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Fri, 17 Jul 2020 12:31:22 +0100
+Subject: [PATCH 16/18] FindWestonClient.cmake: Update to detect that Weston is
+ present.
+
+We ensure Weston 6 or above is present as that is when xdg-stable
+was merged.
+
+The symbols which we used to rely on in libweston-desktop5 are no
+longer present in libweston-desktop8 leading to undefined symbols
+at runtime. Instead we include the generated wayland protocol files
+directly and just use this cmake to ensure Weston is at least present
+in the image.
+
+Note: xdg-shell protocol is supported by many wayland compositors,
+so in theory Thunder should work with mutt, gnome-shell etc, but for
+now we leave it as a "Weston" thing, as that is all we tested it with.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+---
+ cmake/modules/FindWestonClient.cmake | 27 ++-------------------------
+ 1 file changed, 2 insertions(+), 25 deletions(-)
+
+diff --git a/cmake/modules/FindWestonClient.cmake b/cmake/modules/FindWestonClient.cmake
+index 295b27c..e37b755 100644
+--- a/cmake/modules/FindWestonClient.cmake
++++ b/cmake/modules/FindWestonClient.cmake
+@@ -1,10 +1,6 @@
+-# - Try to find Weston library.
++# - Try to find Weston.
+ # Once done this will define
+ #  WESTON_FOUND - System has weston
+-#  WESTON_INCLUDE_DIRS - The weston include directories
+-#  WESTON_LIBRARIES    - The libraries needed to use weston
+-#
+-#  WESTON::WESTON, the weston compositor
+ #
+ # Copyright (C) 2015 Metrological.
+ # Copyright (C) 2019 Linaro.
+@@ -31,24 +27,5 @@
+ # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ find_package(PkgConfig)
+-pkg_check_modules(PC_WESTON libweston-desktop-8)
+-
+-find_library(WESTON_CLIENT_LIB NAMES weston-desktop-8
+-        HINTS ${PC_WESTON_LIBDIR} ${PC_WESTON_LIBRARY_DIRS}
+-)
+-
+-if(PC_WESTON_FOUND AND NOT TARGET WestonClient::WestonClient)
+-    add_library(WestonClient::WestonClient UNKNOWN IMPORTED)
+-    set_target_properties(WestonClient::WestonClient PROPERTIES
+-            IMPORTED_LINK_INTERFACE_LANGUAGES "C"
+-            IMPORTED_LOCATION "${WESTON_CLIENT_LIB}"
+-            INTERFACE_INCLUDE_DIRECTORIES ""
+-            INTERFACE_COMPILE_OPTIONS "${PC_WESTON_DEFINITIONS}"
+-            INTERFACE_LINK_LIBRARIES "${PC_WESTON_LIBRARIES}"
+-            )
+-endif()
+-
+-include(FindPackageHandleStandardArgs)
+-FIND_PACKAGE_HANDLE_STANDARD_ARGS(PC_WESTON DEFAULT_MSG PC_WESTON_FOUND)
++pkg_check_modules(PC_WESTON weston>=6)
+ 
+-mark_as_advanced(PC_WESTON_LIBRARIES)
+-- 
+2.17.1
+

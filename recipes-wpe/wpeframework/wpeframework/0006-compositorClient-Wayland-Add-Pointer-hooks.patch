@@ -1,0 +1,63 @@
+From 1c55326af88c7b6e76aa83db250c93f37c9bc4ac Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 23 Jan 2020 13:20:43 +0100
+Subject: [PATCH 06/18] [compositorClient] Wayland: Add Pointer*() hooks
+
+These are used to glue the Weston.cpp/Westeros.cpp
+wayland event handling, and then actually send the
+events over IPC to wpeframework-rdk wpeframework
+backend and then wpewebkit.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+---
+ .../compositorclient/Wayland/Implementation.h | 27 ++++++++++++++++---
+ 1 file changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/Source/compositorclient/Wayland/Implementation.h b/Source/compositorclient/Wayland/Implementation.h
+index ab9ea40..71dcb26 100644
+--- a/Source/compositorclient/Wayland/Implementation.h
++++ b/Source/compositorclient/Wayland/Implementation.h
+@@ -47,9 +47,6 @@ namespace Wayland {
+             virtual void Attached(const uint32_t id) = 0;
+             virtual void Detached(const uint32_t id) = 0;
+         };
+-        struct IPointer {
+-            virtual ~IPointer() {}
+-        };
+ 
+     private:
+         Display();
+@@ -746,6 +743,30 @@ namespace Wayland {
+             _adminLock.Unlock();
+         }
+ 
++        void PointerXY(const uint16_t x, const uint16_t y)
++        {
++            _adminLock.Lock();
++
++            if ((_pointerReceiver != nullptr) && (_pointerReceiver->_pointer != nullptr)) {
++              _pointerReceiver->_pointer->Direct(x, y);
++            }
++
++            _adminLock.Unlock();
++
++        }
++
++        void PointerButton(const uint8_t button, const IPointer::state action)
++        {
++            _adminLock.Lock();
++
++            if ((_pointerReceiver != nullptr) && (_pointerReceiver->_pointer != nullptr)) {
++              _pointerReceiver->_pointer->Direct(button, action);
++            }
++
++            _adminLock.Unlock();
++
++        }
++
+         // Wayland related info
+         struct wl_display* _display;
+         struct wl_registry* _registry;
+-- 
+2.17.1
+

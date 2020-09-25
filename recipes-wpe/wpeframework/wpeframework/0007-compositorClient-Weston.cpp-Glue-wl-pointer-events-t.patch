@@ -1,0 +1,45 @@
+From d0db77d21bad07a2ce26360170b789acfbbdcb4d Mon Sep 17 00:00:00 2001
+From: Peter Griffin <peter.griffin@linaro.org>
+Date: Thu, 23 Jan 2020 13:25:54 +0100
+Subject: [PATCH 07/18] [compositorClient] Weston.cpp: Glue wl pointer events
+ to new hooks
+
+Tested using Thunder and Weston compositor. It is now
+possible to use the pointer to drive wpewebkit when
+using the wpebackend-rdk configured with wpeframework
+packageconfig.
+
+Previously only keyboard support worked.
+
+Signed-off-by: Peter Griffin <peter.griffin@linaro.org>
+---
+ Source/compositorclient/Wayland/Weston.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Source/compositorclient/Wayland/Weston.cpp b/Source/compositorclient/Wayland/Weston.cpp
+index 8edf5f7..efbadbe 100644
+--- a/Source/compositorclient/Wayland/Weston.cpp
++++ b/Source/compositorclient/Wayland/Weston.cpp
+@@ -182,15 +182,19 @@ static const struct wl_pointer_listener pointerListener = {
+     // pointerMotion
+     [](void* data, struct wl_pointer* pointer, uint32_t time, wl_fixed_t sx, wl_fixed_t sy) {
+         int x, y;
++        Wayland::Display& context = *(static_cast<Wayland::Display*>(data));
+ 
+         x = wl_fixed_to_int(sx);
+         y = wl_fixed_to_int(sy);
+ 
+         Trace("wl_pointer_listener.pointerMotion [%d,%d]\n", x, y);
++        context.PointerXY(x, y);
+     },
+     // pointerButton
+     [](void* data, struct wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
++        Wayland::Display& context = *(static_cast<Wayland::Display*>(data));
+         Trace("wl_pointer_listener.pointerButton [%u,%u]\n", button, state);
++        context.PointerButton(button, static_cast<Wayland::Display::IPointer::state>(state));
+     },
+     // pointerAxis
+     [](void* data, struct wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value) {
+-- 
+2.17.1
+

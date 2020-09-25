@@ -1,0 +1,27 @@
+From 32e6084a7e74a175a4ad7c7708e6af6a5b64420a Mon Sep 17 00:00:00 2001
+From: Cyrille Fleury <cyrille.fleury@nxp.com>
+Date: Fri, 18 Sep 2020 17:59:47 +0200
+Subject: [PATCH 18/18] MMIOT-570: remove wl_pointer_listener.pointerMotion
+ logs
+
+Signed-off-by: Cyrille Fleury <cyrille.fleury@nxp.com>
+---
+ Source/compositorclient/Wayland/Weston.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Source/compositorclient/Wayland/Weston.cpp b/Source/compositorclient/Wayland/Weston.cpp
+index 384b4b4..3940cf2 100644
+--- a/Source/compositorclient/Wayland/Weston.cpp
++++ b/Source/compositorclient/Wayland/Weston.cpp
+@@ -186,7 +186,7 @@ static const struct wl_pointer_listener pointerListener = {
+         x = wl_fixed_to_int(sx);
+         y = wl_fixed_to_int(sy);
+ 
+-        Trace("wl_pointer_listener.pointerMotion [%d,%d]\n", x, y);
++        //Trace("wl_pointer_listener.pointerMotion [%d,%d]\n", x, y);
+         context.PointerXY(x, y);
+     },
+     // pointerButton
+-- 
+2.17.1
+
