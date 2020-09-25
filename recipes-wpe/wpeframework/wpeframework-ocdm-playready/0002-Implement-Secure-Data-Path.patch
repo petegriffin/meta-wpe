@@ -1,0 +1,105 @@
+From dcb310da7bdc9e7cbdc437c0845df6606b4746a5 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@nxp.com>
+Date: Mon, 13 Jan 2020 16:22:05 -0500
+Subject: [PATCH 2/2] Implement Secure Data Path
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@nxp.com>
+---
+ MediaSession.cpp | 20 ++++++++++++++++++--
+ MediaSession.h   |  5 ++++-
+ 2 files changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/MediaSession.cpp b/MediaSession.cpp
+index 2730a5e..ea87d04 100644
+--- a/MediaSession.cpp
++++ b/MediaSession.cpp
+@@ -188,6 +188,7 @@ bool parsePlayreadyInitializationData(const std::string& initData, std::string*
+ 
+ MediaKeySession::MediaKeySession(const uint8_t *f_pbInitData, uint32_t f_cbInitData, const uint8_t *f_pbCDMData, uint32_t f_cbCDMData, bool initiateChallengeGeneration /* = false */)
+     : m_poAppContext(nullptr)
++    , m_poOemContext(nullptr)
+     , m_pbOpaqueBuffer(nullptr) 
+     , m_cbOpaqueBuffer(0)
+     , m_pbRevocationBuffer(nullptr)
+@@ -219,9 +220,13 @@ MediaKeySession::MediaKeySession(const uint8_t *f_pbInitData, uint32_t f_cbInitD
+ 
+   ChkMem(m_poAppContext = (DRM_APP_CONTEXT *)Oem_MemAlloc(SIZEOF(DRM_APP_CONTEXT)));
+ 
++  ChkMem(m_poOemContext = (OEM_CONTEXT *)Oem_MemAlloc(sizeof(OEM_CONTEXT)));
++  m_poOemContext->secure_fd = -1;
++  m_poOemContext->secure_buffer_size = 0;
++
+   // Initialize DRM app context.
+   ChkDR(Drm_Initialize(m_poAppContext,
+-                       nullptr,
++                       m_poOemContext,
+                        m_pbOpaqueBuffer,
+                        m_cbOpaqueBuffer,
+                        &g_dstrCDMDrmStoreName));
+@@ -294,6 +299,7 @@ MediaKeySession::~MediaKeySession(void) {
+ void MediaKeySession::UninitializeContext() {
+   Drm_Uninitialize(m_poAppContext);
+   
++  SAFE_OEM_FREE(m_poOemContext);
+   SAFE_OEM_FREE(m_poAppContext);
+ }
+ 
+@@ -494,7 +500,9 @@ CDMi_RESULT MediaKeySession::Decrypt(
+     uint8_t **f_ppbOpaqueClearContent,
+     const uint8_t, // keyIdLength
+     const uint8_t*, // keyId
+-    bool initWithLast15)
++    bool initWithLast15,
++    int secureFd,
++    uint32_t secureSize)
+ {
+     SafeSyncType<CriticalSection> systemLock(drmAppContextMutex_);
+     assert(f_cbIV > 0);
+@@ -576,6 +584,11 @@ CDMi_RESULT MediaKeySession::Decrypt(
+         f_cdwSubSampleMapping = NO_OF(rgdwMappings);
+     }
+ 
++    if(secureFd >= 0) {
++        m_poOemContext->secure_fd = secureFd;
++        m_poOemContext->secure_buffer_size = secureSize;
++    }
++
+     ChkDR(Drm_Reader_DecryptOpaque(
+ #ifdef NETFLIX
+         &m_oDecryptContext,
+@@ -589,6 +602,9 @@ CDMi_RESULT MediaKeySession::Decrypt(
+         (DRM_BYTE *) payloadData,
+         reinterpret_cast<DRM_DWORD*>(f_pcbOpaqueClearContent),
+         reinterpret_cast<DRM_BYTE**>(f_ppbOpaqueClearContent)));
++
++    m_poOemContext->secure_fd = -1;
++    m_poOemContext->secure_buffer_size = 0;
+ #else
+     ChkDR(Drm_Reader_Decrypt(m_oDecryptContext, &ctrContext, (DRM_BYTE*)payloadData, payloadDataSize));
+     if (DRM_FAILED(dr))
+diff --git a/MediaSession.h b/MediaSession.h
+index 7f7ad6e..e6a0a1f 100644
+--- a/MediaSession.h
++++ b/MediaSession.h
+@@ -128,7 +128,9 @@ public:
+     uint8_t **f_ppbOpaqueClearContent,
+     const uint8_t keyIdLength,
+     const uint8_t* keyId,
+-    bool initWithLast15) override;
++    bool initWithLast15,
++    int secureFd,
++    uint32_t secureSize) override;
+ 
+     virtual CDMi_RESULT ReleaseClearContent(
+     const uint8_t *f_pbSessionKey,
+@@ -179,6 +181,7 @@ private:
+ protected:
+     DRM_BOOL m_fCommit;
+     DRM_APP_CONTEXT *m_poAppContext;
++    OEM_CONTEXT     *m_poOemContext;
+     DRM_DECRYPT_CONTEXT *m_oDecryptContext;
+     bool m_decryptInited;
+ };
+-- 
+2.17.1
+
