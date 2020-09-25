@@ -1,0 +1,42 @@
+From 7750893cf3c83d90267d0c19882d2640506dbac5 Mon Sep 17 00:00:00 2001
+From: Alexandre Jutras <alexandre.jutras@linaro.org>
+Date: Mon, 27 Jan 2020 21:49:45 -0500
+Subject: [PATCH 4/5] OpenCDMi: Allow to configure SDP
+
+Signed-off-by: Alexandre Jutras <alexandre.jutras@linaro.org>
+---
+ OpenCDMi/CMakeLists.txt   | 4 ++++
+ OpenCDMi/FrameworkRPC.cpp | 2 --
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/OpenCDMi/CMakeLists.txt b/OpenCDMi/CMakeLists.txt
+index 94a9d92..0fa9ef0 100644
+--- a/OpenCDMi/CMakeLists.txt
++++ b/OpenCDMi/CMakeLists.txt
+@@ -20,6 +20,10 @@ set_target_properties(${MODULE_NAME} PROPERTIES
+         CXX_STANDARD 11
+         CXX_STANDARD_REQUIRED YES)
+ 
++if("${SECURE_DATA_PATH}" STREQUAL "ON")
++    add_definitions(-DENABLE_SECURE_DATA_PATH=1)
++endif()
++
+ target_sources(${MODULE_NAME} PRIVATE helper/socket_server_helper.cpp)
+ 
+ target_link_libraries(${MODULE_NAME} 
+diff --git a/OpenCDMi/FrameworkRPC.cpp b/OpenCDMi/FrameworkRPC.cpp
+index 04fcecf..4154703 100644
+--- a/OpenCDMi/FrameworkRPC.cpp
++++ b/OpenCDMi/FrameworkRPC.cpp
+@@ -20,8 +20,6 @@
+ #include <ocdm/open_cdm.h>
+ #include "helper/socket_server_helper.h"
+ 
+-#define ENABLE_SECURE_DATA_PATH 1
+-
+ extern "C" {
+ 
+ typedef ::CDMi::ISystemFactory* (*GetDRMSystemFunction)();
+-- 
+2.17.1
+

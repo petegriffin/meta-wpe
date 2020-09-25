@@ -12,7 +12,12 @@ SRC_URI = "git://github.com/WebPlatformForEmbedded/WPEFrameworkPlugins.git;proto
            file://0001-WebKitBrowser-Default-to-1080p-instead-of-720p.patch \
            file://0001-westeros-preload-libwesteros_gl.so.0.0.0.patch \
            "
-#DRM_PATCH
+
+SRC_URI += "file://0001-OpenCDMi-Retrieve-sub-sample-data-from-ocdm-client.patch;md5sum=9a7d1dece9d3525c8d981cc487cdc14d" 
+SRC_URI += "file://0002-OCDM-Implement-a-socket-helper-class.patch;md5sum=ff2741e022731b73b88fef7bc0c3ab6b" 
+SRC_URI += "file://0003-OCDM-Implement-Secure-Data-Path.patch;md5sum=7d7fb74b344b5a7fcd44b720bd25a54b" 
+SRC_URI += "file://0004-OpenCDMi-Allow-to-configure-SDP.patch;md5sum=4f0a1e5f346f77ce7da89503e583e8ce" 
+SRC_URI += "file://0005-OpenCDMi-Disable-debug-log-in-socket_server_helper.patch;md5sum=f93283cb44bb441ed91688067c3c9a50" 
 SRCREV = "a84313d0355b3c57033c5e24b9ac927f4bda913b"
 
 # ----------------------------------------------------------------------------
