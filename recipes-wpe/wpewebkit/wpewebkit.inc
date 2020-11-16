@@ -11,7 +11,7 @@ DEPENDS += " \
     bison-native ccache-native glib-2.0-native gperf-native libxml2-native ninja-native ruby-native chrpath-replacement-native \
     cairo freetype glib-2.0 gnutls harfbuzz icu jpeg pcre sqlite3 zlib \
     libepoxy libpng libsoup-2.4 libwebp libxml2 libxslt \
-    virtual/egl virtual/libgles2 \
+    virtual/egl virtual/libgles2 virtual/wpebackend \
 "
 
 # unset CCACHE_DISABLE for this recipe
